@@ -1,0 +1,22 @@
+{
+  "name": "controllerai-plugin-marketplace",
+  "description": "Official Controller AI plugin releases.",
+  "owner": {
+    "name": "Controller AI",
+    "email": "hi@getcontroller.ai"
+  },
+  "plugins": [
+    {
+      "name": "controllerai",
+      "source": "./",
+      "description": "Build, test, run, and publish Controller AI workflows and user-facing agents.",
+      "version": "0.2.14",
+      "author": {
+        "name": "Controller AI",
+        "email": "hi@getcontroller.ai"
+      },
+      "category": "productivity",
+      "homepage": "https://docs.getcontroller.ai"
+    }
+  ]
+}

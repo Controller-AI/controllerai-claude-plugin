@@ -1,0 +1,4 @@
+interface:
+  display_name: "Controller AI Runs"
+  short_description: "Run, test, and debug workflow executions"
+  default_prompt: "Run and debug this Controller AI workflow using execution evidence and resolved configuration values."

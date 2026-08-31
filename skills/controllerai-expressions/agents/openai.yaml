@@ -1,0 +1,4 @@
+interface:
+  display_name: "Controller AI Expressions"
+  short_description: "Author and verify dynamic workflow expressions"
+  default_prompt: "Write and validate the Controller AI expressions needed for this workflow using exact runtime bindings."

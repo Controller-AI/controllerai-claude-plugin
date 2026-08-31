@@ -1,0 +1,4 @@
+interface:
+  display_name: "Controller AI Start"
+  short_description: "Route agent and automation building safely"
+  default_prompt: "Use $controllerai-start to connect Controller AI and help me build an agent or automation."

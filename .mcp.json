@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "controllerai": {
+      "type": "http",
+      "url": "https://mcp.getcontroller.ai/mcp"
+    }
+  }
+}

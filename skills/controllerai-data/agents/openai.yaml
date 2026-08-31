@@ -1,0 +1,4 @@
+interface:
+  display_name: "Controller AI Data"
+  short_description: "Manage workflow schemas and records"
+  default_prompt: "Create or manage Controller AI workflow data safely across the development and live stores."

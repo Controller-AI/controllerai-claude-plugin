@@ -1,0 +1,4 @@
+interface:
+  display_name: "Controller AI AI Nodes"
+  short_description: "Configure Ask AI and Agent workflow nodes"
+  default_prompt: "Configure the Controller AI AI or Agent nodes with typed outputs, explicit model choices, and cost-aware verification."

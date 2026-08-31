@@ -1,0 +1,21 @@
+{
+  "name": "controllerai",
+  "displayName": "Controller AI",
+  "version": "0.2.14",
+  "description": "Build, test, run, and publish Controller AI workflows and user-facing agents.",
+  "author": {
+    "name": "Controller AI",
+    "email": "hi@getcontroller.ai",
+    "url": "https://getcontroller.ai"
+  },
+  "homepage": "https://docs.getcontroller.ai",
+  "repository": "https://github.com/Controller-AI/controllerai-claude-plugin",
+  "license": "Apache-2.0",
+  "keywords": [
+    "automation",
+    "workflows",
+    "agents",
+    "integrations",
+    "mcp"
+  ]
+}

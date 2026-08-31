@@ -1,0 +1,4 @@
+interface:
+  display_name: "Controller AI Flow Control"
+  short_description: "Build branches, loops, joins, and subflows"
+  default_prompt: "Build the Controller AI control flow, wire every path, and verify each branch or loop."

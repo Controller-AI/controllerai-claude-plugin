@@ -1,0 +1,4 @@
+interface:
+  display_name: "Controller AI Integration Actions"
+  short_description: "Attach ready integration actions to agents"
+  default_prompt: "Use $controllerai-integration-actions to find and attach the right integration action to my Controller AI agent."
