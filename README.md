@@ -1,18 +1,25 @@
-# Controller AI for Claude Code
+# Controller AI for Claude
 
-Build, test, run, and publish Controller AI workflows and user-facing agents from Claude Code.
+Controller AI is an automation platform built for AI agents to operate and for people to understand. Ask Claude to build, test, publish, diagnose, and maintain durable automations using 1,000+ integrations. Each automation remains visible as deterministic steps on a visual canvas, with inspectable execution and version history and connections kept in one place. Building user-facing agents is also supported, but automation is the primary focus.
 
-The plugin bundles eleven focused Controller AI skills and connects to the hosted Controller AI MCP endpoint over OAuth. Its `exec` tool accepts only exact `cai ...` commands; it is not a shell and cannot run arbitrary programs, pipes, or redirections.
+The plugin works in Claude Code and Claude Cowork. It bundles eleven focused skills and supports both the hosted Controller AI MCP connector and the local `cai` CLI. The hosted connector's `exec` tool accepts only exact `cai ...` commands; it is not a shell and cannot run arbitrary programs, pipes, or redirections.
 
-## Test from a checkout
+## Choose a connection path
 
-From the plugin repository root:
+Both paths are supported:
+
+- **Hosted MCP connector:** works without a local CLI and authenticates through Controller AI OAuth. This is the normal path for hosted and no-install environments.
+- **Local `cai` CLI:** often works best for local or file-heavy tasks and uses the Controller AI account already connected on the machine.
+
+If both paths are available, Claude should respect your explicit choice. Otherwise it will identify the selected transport and account or context before the first Controller AI operation. It must not silently switch or mix transports or accounts during a task.
+
+## Claude Code
+
+From the plugin repository root, test the checkout with:
 
 ```bash
 claude --plugin-dir .
 ```
-
-Authenticate the `controllerai` MCP server when Claude Code prompts you, then ask Claude to inspect or build a Controller AI workflow.
 
 To install the checkout through Claude Code's local marketplace flow:
 
@@ -21,19 +28,33 @@ claude plugin marketplace add . --scope local
 claude plugin install controllerai@controllerai-plugin-marketplace --scope local
 ```
 
+For the hosted path, authenticate the `controllerai` MCP server when Claude Code prompts you. If authentication needs to be renewed, open `/mcp` and authenticate `plugin:controllerai:controllerai` again.
+
+For the local path, install the Controller AI CLI, run `cai connect`, and verify the selected account with `cai doctor`.
+
+## Claude Cowork
+
+Install the plugin from its GitHub repository. Installing the plugin loads its skills but does not grant access to the hosted Controller AI account by itself. To use hosted MCP:
+
+1. Open the Controller AI plugin details.
+2. Open **Connectors** and select **Connect** for `controllerai`.
+3. Complete Controller AI OAuth and choose whether to connect an existing account or create an agent account.
+4. Start a fresh task and ask Claude to use the Controller AI connector.
+
+Cowork may also find an already installed and authenticated local `cai` CLI. That is a valid path, but it exercises the local account rather than the hosted connector. Ask Claude to use a specific path when you want to test one of them explicitly.
+
 ## Try it
 
-- `List my Controller AI workflows and summarize which ones are published. Do not change anything.`
-- `Create and test a draft workflow that accepts a name and returns a greeting. Do not publish it.`
-- `Inspect my most recent failed Controller AI development run and explain the first actionable cause.`
-
-If authentication needs to be renewed, open `/mcp` in Claude Code and authenticate `plugin:controllerai:controllerai` again.
+- `Review the recurring tasks, handoffs, and tools I describe. Identify the best automation opportunity, then build and test it in Controller AI.`
+- `Create and test a draft automation that accepts a name and returns a greeting. Do not publish it.`
+- `Inspect my most recent failed Controller AI automation run, explain the first actionable cause, and safely fix the draft.`
 
 ## Requirements
 
-- Claude Code
+- Claude Code or Claude Cowork
 - A Controller AI account, or an agent account created during MCP authorization
-- Network access to `https://mcp.getcontroller.ai/mcp`
+- Network access to `https://mcp.getcontroller.ai/mcp` for the hosted path
+- The Controller AI `cai` CLI for the optional local path
 
 Controller AI documentation: <https://docs.getcontroller.ai>
 
@@ -43,6 +64,6 @@ Privacy: <https://getcontroller.ai/privacy-policy>
 
 Terms: <https://getcontroller.ai/terms-of-service>
 
-Support: <hi@getcontroller.ai>
+Support: <https://getcontroller.ai/support> or <hi@getcontroller.ai>
 
 License: [Apache-2.0](./LICENSE)

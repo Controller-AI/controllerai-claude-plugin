@@ -5,21 +5,24 @@ description: Connect, orient, and route work across Controller AI agents and no-
 
 # Start with Controller AI
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+Controller AI supports two command transports:
 
-Use the installed `cai` CLI as the supported platform interface. Do not call Controller AI REST or MCP routes directly.
+- In an MCP host, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+- In a local coding environment, use the installed `cai` CLI. It is often the better path for local or file-heavy work.
+
+Respect an explicit user choice of transport or account. When only one transport is available, use it. When both are available and the user did not choose, select the one that best fits the task and briefly identify the selected transport and account or context before the first Controller AI operation. Do not mix transports or silently switch transports or accounts during a task. If the selected path becomes unavailable or loses authentication, stop and offer the other path instead of switching behind the user's back.
+
+Do not call Controller AI REST or MCP routes directly.
 
 ## Confirm the setup
 
-Run:
+Run `cai doctor` through the selected transport.
 
-```bash
-cai doctor
-```
+For the hosted MCP path, authentication belongs to the bundled Controller AI connector. If it is unavailable or unauthenticated, stop and ask the user to connect or reauthenticate it in the host. Do not try to repair the hosted path by invoking a machine-local `cai`, `cai connect`, `cai signup`, `cai skills update`, or a package installer.
 
-If authentication is missing and the human already has an account, run `cai connect`. If no account exists, run `cai signup` to create a provisional workspace and start building immediately. An unclaimed signup has the same functional access as a free account, including workflow and agent publishing; its workspace is not automatically deleted, and it has a $1 monthly usage cap (`cai signup` prints the exact amount). Email claiming is optional: run `cai signup email <address>`, ask the human account owner for the 6-digit code delivered to their inbox (never guess it), then run `cai signup verify <code>` to raise the monthly cap to $5 and enable durable account recovery. If agent signup is disabled, ask the human to register at https://app.getcontroller.ai/register, then run `cai connect`.
+For the local CLI path, if authentication is missing and the human already has an account, offer `cai connect`. If no account exists, offer `cai signup` to create a provisional agent account and start building immediately. An unclaimed account has the same functional access as a free account, including workflow and agent publishing; it is not automatically deleted, and it has a $1 monthly usage cap (`cai signup` prints the exact amount). Email claiming is optional: run `cai signup email <address>`, ask the human account owner for the 6-digit code delivered to their inbox (never guess it), then run `cai signup verify <code>` to raise the monthly cap to $5 and enable durable account recovery. If agent signup is disabled, ask the human to register at https://app.getcontroller.ai/register, then run `cai connect`.
 
-If `cai doctor` reports missing, stale, or damaged managed skills, run `cai skills update`, then run `cai doctor` again. When the `CLI version` row says a newer cai is available, upgrade before continuing (`npm install -g @controllerai/cli@latest`, then `cai skills update`) — new versions carry fixes the rest of these skills assume. Skill updates are setup maintenance, not a step to repeat during every build. Never ask the user to paste a password, provider token, or Controller AI credential into chat.
+Only on the selected local CLI path, if `cai doctor` reports missing, stale, or damaged managed skills, offer `cai skills update`. If it reports a newer CLI, ask before installing or upgrading software; after approval, use the documented upgrade command and rerun `cai doctor`. Never install or upgrade the CLI automatically. Never ask the user to paste a password, provider token, or Controller AI credential into chat.
 
 ## Route the outcome
 
