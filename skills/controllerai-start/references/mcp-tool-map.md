@@ -2,7 +2,7 @@
 
 # CLI to typed MCP tool map
 
-This registry-derived map covers 176 CLI commands and 161 typed MCP tools. CLI examples remain the canonical grammar; typed MCP calls use the tool and camelCase parameters shown here. Global `--json` and `--api-url` flags are host-controlled and omitted.
+This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI examples remain the canonical grammar; typed MCP calls use the tool and camelCase parameters shown here. Global `--json` and `--api-url` flags are host-controlled and omitted.
 
 | `cai` command | MCP tool | Parameter mapping | Notes |
 | --- | --- | --- | --- |
@@ -139,9 +139,6 @@ This registry-derived map covers 176 CLI commands and 161 typed MCP tools. CLI e
 | `cai schema list` | `schema_type_list` | `--all` → `all`; `--workflow` → `workflowId` | — |
 | `cai schema resolve` | `schema_type_resolve` | `<typeId>` → `typeId`; `--workflow` → `workflowId` | — |
 | `cai schema update` | `schema_type_update` | `<name>` → `name`; `--display` → `display`; `--field` → `field`; `--from-json` → `fromJson` (inline content); `--workflow` → `workflowId` | — |
-| `cai share create` | `share_create` | `--description` → `description`; `--name` → `name`; `--version` → `version`; `--workflow` → `workflowId` | — |
-| `cai share list` | `share_list` | `--workflow` → `workflowId` | — |
-| `cai share revoke` | `share_revoke` | `<shareId>` → `shareId` | — |
 | `cai signup` | — | — | dropped: The OAuth-authorized caller already has a provisioned account; root signup is local bootstrap. |
 | `cai signup email` | `account_claim_start` | `<address>` → `email` | hosted: Uses the OAuth grant durable email-claim adapter instead of local CLI credential replacement. |
 | `cai signup verify` | `account_claim_verify` | `<code>` → `code` | hosted: Uses the OAuth grant durable email verification adapter. |
@@ -165,7 +162,7 @@ This registry-derived map covers 176 CLI commands and 161 typed MCP tools. CLI e
 | `cai trigger toggle` | `trigger_set_enabled` | `<triggerId>` → `triggerId`; `--workflow` → `workflowId`; `enabled` (MCP-only) → `enabled` | merged: The hosted setter reads current state and only invokes the CLI toggle when state differs. |
 | `cai use` | — | — | dropped: Persists a local workflow pin; every typed workflow call carries an explicit id. |
 | `cai workflow create` | `workflow_create` | `--name` → `name` | — |
-| `cai workflow delete` | `workflow_delete` | `--force` → `force`; `<workflowId>` / `--workflow` → `workflowId` | — |
+| `cai workflow delete` | `workflow_delete` | `<workflowId>` / `--workflow` → `workflowId` | — |
 | `cai workflow duplicate` | `workflow_duplicate` | `<workflowId>` / `--workflow` → `workflowId` | — |
 | `cai workflow get` | `workflow_get` | `<workflowId>` / `--workflow` → `workflowId` | — |
 | `cai workflow history` | `workflow_history` | `--group` → `group`; `--version` → `version`; `--workflow` → `workflowId` | — |
