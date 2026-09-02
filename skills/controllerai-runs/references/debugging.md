@@ -11,6 +11,8 @@ cai flow get <flowId> --json
 
 Node runs use development. Flow runs default to development; `cai run flow <flowId> --target live --confirm-live` runs the published version. Trigger replay also defaults to development and uses the same flags for live. Every rail can call real providers and create external effects.
 
+MCP: `run_flow` takes `waitSeconds` and may return before the execution is terminal.
+
 ## 2. Find the first divergence
 
 ```bash

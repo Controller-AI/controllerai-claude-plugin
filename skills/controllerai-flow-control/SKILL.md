@@ -5,7 +5,7 @@ description: Design and configure Controller AI execution paths using only-when 
 
 # Controller AI flow control
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
 Choose the primitive from the intended execution semantics before adding nodes.
 
@@ -73,7 +73,7 @@ For If/Else, order is behavior:
 cai branch reorder <ifElseNodeId> --order <conditionId1,conditionId2> --json
 ```
 
-List every condition branch exactly once and omit Else; the CLI keeps Else last. Router routes cannot be reordered because every match runs.
+List every condition branch exactly once and omit Else; the operation keeps Else last. Router routes cannot be reordered because every match runs.
 
 After edits, run `cai branch list` again. Treat its warnings about missing conditions or unwired paths as blockers: an unwired selected path can end with an apparently green execution.
 
@@ -97,9 +97,12 @@ Use repeatable `--item-field <id:type[:display]>` only when creating a new `cust
 Copy `--source-output` from the selected node's exact `outputs[].id`. It is an opaque ID, not `displayName`, and there is no first-output default. This matters for Router, If/Else, and error outputs as well as ordinary action nodes.
 
 - If the source's whole output is the list, omit both `--list-field` and `--list-js`.
-- If the list is nested in the source payload, use `--list-field` with the dot-delimited path below `.data`; the CLI derives the not-yet-created loop input binding deterministically.
+- If the list is nested in the source payload, use `--list-field` with the dot-delimited path below `.data`; the operation derives the not-yet-created loop input binding deterministically.
 - Use `--list-js` only for an advanced exact expression. For multiline or shell-sensitive source, use `--js-file <path|->` instead. Both are mutually exclusive with `--list-field` and with each other; copy the wrapper/binding shape from expression context rather than guessing it.
-- The runtime cap defaults to 500 items and accepts 1 through 10000. Set `--max-items` explicitly when the product requirement differs. The CLI creates the core scaffold first, then materializes and verifies this optional prop. The cap is all-or-nothing at runtime: a list larger than the cap throws and NOTHING iterates — there is no partial truncation.
+
+MCP: pass expression source inline as `listJs` to `flow_for_each_scaffold`; the server cannot read a local `--js-file` path.
+
+- The runtime cap defaults to 500 items and accepts 1 through 10000. Set `--max-items` explicitly when the product requirement differs. The scaffold operation creates the core graph first, then materializes and verifies this optional prop. The cap is all-or-nothing at runtime: a list larger than the cap throws and NOTHING iterates — there is no partial truncation.
 
 Changing an existing loop: update its loop-node props directly:
 
@@ -107,6 +110,8 @@ Changing an existing loop: update its loop-node props directly:
 cai node set <loopNodeId> --prop maxItems --value <n> --json
 cai node set <loopNodeId> --prop continueOnIterationError --value true --json
 ```
+
+MCP: use `node_prop_set` for both writes.
 
 This is not `cai node continue-on-error`, which configures the node-level Error output — a different feature.
 
@@ -126,6 +131,8 @@ Define the called flow's inputs and outputs first. Then initialize a Run flow co
 cai node set-flow <runFlowNodeId> --flow <calledFlowId> --json
 cai node props <runFlowNodeId> --json
 ```
+
+MCP: `cai node set-flow` maps to `node_subflow_set`.
 
 Setting the target flow creates mapping props from the target's current inputs. If those inputs later change, run `set-flow` again and reconfigure mappings.
 

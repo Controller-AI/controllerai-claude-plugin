@@ -2,13 +2,13 @@
 
 Controller AI is an automation platform built for AI agents to operate and for people to understand. Ask Claude to build, test, publish, diagnose, and maintain durable automations using 1,000+ integrations. Each automation remains visible as deterministic steps on a visual canvas, with inspectable execution and version history and connections kept in one place. Building user-facing agents is also supported, but automation is the primary focus.
 
-The plugin works in Claude Code and Claude Cowork. It bundles eleven focused skills and supports both the hosted Controller AI MCP connector and the local `cai` CLI. The hosted connector's `exec` tool accepts only exact `cai ...` commands; it is not a shell and cannot run arbitrary programs, pipes, or redirections.
+The plugin works in Claude Code and Claude Cowork. It bundles eleven focused skills and supports both the hosted Controller AI MCP connector and the local `cai` CLI. The hosted connector exposes 161 typed tools, one per supported action, with input and output schemas plus read/write annotations. The legacy `exec` tool is deprecated; Claude should use the typed tools directly.
 
 ## Choose a connection path
 
 Both paths are supported:
 
-- **Hosted MCP connector:** works without a local CLI and authenticates through Controller AI OAuth. This is the normal path for hosted and no-install environments.
+- **Hosted MCP connector:** works without a local CLI, authenticates through Controller AI OAuth, and exposes typed Controller AI actions directly. This is the normal path for hosted and no-install environments.
 - **Local `cai` CLI:** often works best for local or file-heavy tasks and uses the Controller AI account already connected on the machine.
 
 If both paths are available, Claude should respect your explicit choice. Otherwise it will identify the selected transport and account or context before the first Controller AI operation. It must not silently switch or mix transports or accounts during a task.

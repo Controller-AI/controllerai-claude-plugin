@@ -5,7 +5,7 @@ description: Discover, initialize, configure, connect, and verify Controller AI 
 
 # Controller AI node configuration
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
 A node is ready only after its component, connection, dependency-ordered props, wiring, and output type are valid. Treat configuration as a state machine, not a bag of property writes.
 
@@ -37,7 +37,11 @@ cai connection list --node <nodeSlug> --json
 
 - One active connection: use its exact `connectionId`.
 - Several: use an explicit user preference; otherwise ask which account.
-- None: add the real component without `--connection`; `missingConnection: true` is a valid handoff state. Get the link with `cai connection connect <nodeSlug> --no-open` and share it with the user right away — do not start with `--wait`, which blocks until they finish and delays sharing the link. After they confirm, run `cai connection list --integration <nodeSlug> --json` and bind the new ID with `cai node set-connection <nodeId> --connection <connectionId>`.
+- None: add the real component without `--connection`; `missingConnection: true` is a valid handoff state. On CLI, get the link with `cai connection connect <nodeSlug> --no-open` and share it right away; do not block on `--wait` before sharing.
+
+  MCP: use `connection_connect_url` with `nodeSlug` and share the returned URL right away.
+
+  After they confirm, run `cai connection list --integration <nodeSlug> --json` and bind the new ID with `cai node set-connection <nodeId> --connection <connectionId>`.
 
 Never substitute a connection from a similar slug.
 
@@ -55,6 +59,8 @@ cai node init \
   --after <upstreamNodeId> \
   --json
 ```
+
+MCP: use `node_add`; `cai node init` is the CLI alias of `cai node add`.
 
 Omit flags that do not apply. `--after` creates the ordinary main/error wire at creation. Use it when later props need upstream data. Initialization also accepts `--props`, but use it only for static, non-option values already present in the inspected component metadata. Never inline a `remoteOptions` value, a reload selector and its dependents, or a prop that has not materialized yet; initialize first and set those sequentially. Use `--enable-prop <name...>` only for optional props confirmed by component metadata.
 
@@ -91,6 +97,8 @@ Static value:
 cai node set <nodeId> --prop <exactName> --value '<literal-or-json>' --json
 ```
 
+MCP: use `node_prop_set` with `value`; it also handles expression writes through `js`.
+
 Optional prop:
 
 ```bash
@@ -99,7 +107,11 @@ cai node set <nodeId> --prop <exactName> --value '<literal-or-json>' --json
 # or: cai expr set <nodeId> --prop <exactName> --js '<expression>' --json
 ```
 
+MCP: `cai expr set` is the `js` form of `node_prop_set`.
+
 `node set` and `expr set` auto-enable a catalog-only optional prop, refresh its metadata, then write. Do not run a separate enable step first. If validation or the later write fails, the prop stays enabled; repair with `cai node disable-prop <nodeId> --prop <exactName>` and re-read props. This is also the repair for the Update-data wipe footgun: that action writes every enabled field, so disable any accidentally enabled field before running it.
+
+MCP: use `node_optional_prop_set` with `enabled: false` to disable or `enabled: true` to enable.
 
 Remote or dynamic option:
 
@@ -114,7 +126,7 @@ cai node set <nodeId> \
 
 `node options` also supports `--prev-context '<context JSON>'` from the preceding page and repeatable `--for '<earlierProp>=<value>'` overrides for read-only hypothetical resolution; JSON literals are accepted and bare text stays a string. If options are `blocked_upstream`, both `node options` and `node set` name the blocking prop and print the exact `cai node set` command to run first.
 
-For an ordinary remote option, preserve both fields from the same returned option. The label is not cosmetic: the CLI uses it to search providers that do not index opaque IDs, then verifies that the returned value still matches before writing. For a multi-select, pass a JSON array of returned values and one `--label` argument per value, in the same order. The CLI supplies the persisted label shape, chooses the correct expression storage channel, and verifies read-back.
+For an ordinary remote option, preserve both fields from the same returned option. The label is not cosmetic: it is used to search providers that do not index opaque IDs, then the returned value is verified before writing. For a multi-select, pass a JSON array of returned values and one `--label` argument per value, in the same order. The write supplies the persisted label shape, chooses the correct expression storage channel, and verifies read-back.
 
 When an earlier selector makes the prop `dynamic_upstream`, no option list exists. Use a known exact ID or an expression:
 
@@ -146,13 +158,19 @@ cai node status <nodeId> --json
 cai run node <nodeId> --inputs <values.json> --json
 ```
 
+MCP: `run_node` takes the parsed `inputs` object and `waitSeconds` (default 60, max 120).
+
 If the node has a wired input or consumes `inputs.<name>`, the node test is only an isolated configuration check. Run `cai run flow <flowId> --inputs <values.json> --json` before declaring its upstream expressions verified.
+
+MCP: `run_flow` takes the parsed `inputs` object and `waitSeconds` (default 60, max 120).
 
 If a dynamic provider action cannot be run but its response is documented, declare an unverified output contract:
 
 ```bash
 cai node declare-output <nodeId> --sample-file provider-response.json --json
 ```
+
+MCP: call `node_output_type_declare` with the parsed provider response in `sample`; the server cannot read `provider-response.json`.
 
 The sample must be a JSON object or a non-empty JSON array of provider items. Re-read status and expression context afterward; the first real completed run verifies the declaration.
 

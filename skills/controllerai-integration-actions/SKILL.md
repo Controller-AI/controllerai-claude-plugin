@@ -5,9 +5,9 @@ description: Discover, connect, attach, update, and verify ready integration act
 
 # Controller AI integration actions
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
-Ready integration actions give a hosted agent one app operation without first building a workflow. Use only the `cai` commands below; do not call Controller AI REST or MCP routes directly.
+Ready integration actions give a hosted agent one app operation without first building a workflow. Use the canonical operations below through the selected transport; do not call Controller AI REST routes directly.
 
 ## Choose direct action or workflow
 
@@ -36,9 +36,11 @@ Use an active connection whose `nodeSlug` exactly matches the integration. If no
 cai connection connect <integrationSlug>
 ```
 
-The browser handoff keeps provider credentials out of the agent context. Re-list connections after the user finishes, then attach the action.
+MCP: call `connection_connect_url`; it returns the URL immediately and has no `open` or `wait` parameter.
 
-A missing connection is never a reason to substitute `registry_http-http-request` for a catalog component. For a workflow node, add the real component and leave it unconnected; `missingConnection: true` is a valid handoff state. For a direct action, preserve the selected integration and action and stop at the connection handoff. Give the user `cai connection connect <slug>`. A raw endpoint mentioned by the user is background context, not an instruction to hand-roll the call.
+The connection handoff keeps provider credentials out of the agent context. The CLI may open the URL; MCP returns it. Re-list connections after the user finishes, then attach the action.
+
+A missing connection is never a reason to substitute `registry_http-http-request` for a catalog component. For a workflow node, add the real component and leave it unconnected; `missingConnection: true` is a valid handoff state. For a direct action, preserve the selected integration and action and stop at the connection handoff. Give the user the returned connection URL; on CLI, `cai connection connect <slug>` obtains it. A raw endpoint mentioned by the user is background context, not an instruction to hand-roll the call.
 
 ## Decide approval before attaching
 
@@ -59,7 +61,9 @@ cai agent add-action <agentId> \
   --json
 ```
 
-Omit `--require-confirmation` only after making the decision; the CLI still sends an explicit `false`. Do not attach the same action twice.
+MCP: call `agent_tool_action_add` and pass `requireConfirmation` explicitly as `true` or `false`.
+
+Omit `--require-confirmation` on CLI only after making the decision; the CLI still sends an explicit `false`. MCP requires the boolean. Do not attach the same action twice.
 
 Read the saved grant back:
 
@@ -77,6 +81,8 @@ cai agent update-tool <agentId> --tool <toolId> --require-confirmation --json
 cai agent update-tool <agentId> --tool <toolId> --no-confirmation --json
 ```
 
+MCP: call `agent_tool_update`; use `connectionId` and `requireConfirmation: true` or `requireConfirmation: false`.
+
 `--connection` can redirect the published action immediately because authorization is live-bound. Description and confirmation-policy edits remain draft changes until the agent is published.
 
 ## Verify through the hosted agent
@@ -87,6 +93,8 @@ Use a representative draft conversation:
 cai agent test <agentId> --draft --message "<request>" --json
 cai agent conversation history <conversationId> --json
 ```
+
+MCP: call `agent_test` with `rail: draft` and `waitSeconds`.
 
 A direct action runs inline and does not create a workflow execution ID. Evidence is the persisted conversation, its direct-action tool/run events, the returned result, and any observed external side effect. Never invent a workflow execution ID for it.
 

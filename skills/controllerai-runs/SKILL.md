@@ -5,7 +5,7 @@ description: Run and debug Controller AI nodes on development and flows on devel
 
 # Controller AI runs
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
 Think "real run", not "simulation". `run node` always uses development; `run flow` defaults to development and can target the published live version. Both rails execute real integration actions (messages send, records change, provider usage is spent); development isolation covers the data store only. Running is a required part of building — one successful run is how a dynamic node's output type gets resolved for the next step — so mitigate risk before running.
 
@@ -23,6 +23,8 @@ If the user declines running the action, accept it. Then keep the build honest: 
 cai node declare-output <nodeId> --sample-file shape.json
 ```
 
+MCP: call `node_output_type_declare` with parsed JSON in `sample`; the server cannot read `shape.json`.
+
 — where `shape.json` is a representative response object from the provider's API reference. The contract is marked `declared (unverified)`; the first real completed run verifies and upgrades it automatically. State clearly that it is unverified until then, and make the first live run the explicit verification step. Never silently skip the question and never present an unrun action as verified.
 
 ## First live run is part of development
@@ -33,6 +35,8 @@ After publishing, run the published version directly under supervision:
 cai run flow <flowId> --inputs values.json --target live --confirm-live --json
 ```
 
+MCP: pass parsed values in `inputs` and set `waitSeconds` on `run_flow`.
+
 This command fires external actions and spends usage. For risky sends, build the safe-audience harness: branch on the `isLiveVersion` data source with If/Else — the false branch targets the developer (own email/channel), the true branch targets the real audience. Use this direct live run for explicit verification; do not wait for a real trigger event.
 
 ## Prepare exact run inputs
@@ -42,7 +46,7 @@ cai run inputs <nodeId> --json
 cai run inputs <flowId> --flow --json
 ```
 
-Use returned opaque input IDs. Flow mode lists EVERY declared input with a `used` flag: supply the used ones (an unsupplied used input falls back to its saved test value), while values keyed to unused inputs are accepted and ignored. A compact input file can be a flat map:
+Use returned opaque input IDs. Flow mode lists EVERY declared input with a `used` flag: supply the used ones (an unsupplied used input falls back to its saved test value), while values keyed to unused inputs are accepted and ignored. The input object can be a flat map; the CLI may load it from a file:
 
 ```json
 {
@@ -65,9 +69,11 @@ cai run node <nodeId> --inputs values.json --json
 cai run flow <flowId> --inputs values.json --json
 ```
 
+MCP: pass parsed values in `inputs` and set `waitSeconds` on `run_node` or `run_flow`.
+
 `run node` is deliberately isolated: it does not execute wired upstream nodes. Read its `runScope`. If `endToEndValidationRequired` is true, values derived from upstream can be empty even when the selected node is green; do not accept that run as expression proof. `run flow` is the end-to-end check that executes upstream wiring.
 
-The CLI waits for a terminal execution state. Capture `workflowExecutionId` and `nodeExecutionId` from the result.
+The CLI waits for a terminal execution state by default. MCP polling is bounded by `waitSeconds` and may return an unfinished execution ID. Capture `workflowExecutionId` and `nodeExecutionId` from the result.
 
 For every node test, inspect:
 
@@ -75,7 +81,7 @@ For every node test, inspect:
 - `skipReason`
 - `runScope`, especially `upstreamNodesExecuted` and `endToEndValidationRequired`
 - `resolvedConfigs`
-- `resolvedConfigs[].resolutionWarnings`: trust every structured entry; `[]` is authoritatively clean. Runs also surface entries on stderr, so read stderr even when the execution completed.
+- `resolvedConfigs[].resolutionWarnings`: trust every structured entry; `[]` is authoritatively clean. Also read any transport warnings; CLI runs may mirror them on stderr.
 - `outputTypeAdoption`: the server verifies the exact completed `nodeExecutionId`, derives its persisted output shape, and updates only that non-static node. `adopted` or `already_typed` lets the next `node status` converge; `no_observed_output` means the representative run returned no reusable shape. `adoptedNodeIds` must be empty or contain only the tested node; stop if it names a sibling.
 - output shape and values
 
@@ -106,13 +112,15 @@ cai run discover \
   --json
 ```
 
-This calls the real third-party action and spends usage. For a destructive action, do not probe merely to learn its output — first ask the user for a safe target (see "Consequential actions" above); if they decline, declare the expected shape instead. Use `--keep` only when the user wants the scratch node retained.
+MCP: `run_discover` always removes the scratch graph and exposes neither `keep` nor `waitSeconds`.
+
+This calls the real third-party action and spends usage. For a destructive action, do not probe merely to learn its output — first ask the user for a safe target (see "Consequential actions" above); if they decline, declare the expected shape instead. On CLI, use `--keep` only when the user wants the scratch node retained.
 
 After successful output discovery, re-read `cai node status` and downstream `cai expr context`; verify the adopted output type is concrete.
 
 ## Completion gate
 
-- Gate scripts on `cai workflow validate`; it exits 1 when the response has `valid: false`.
+- CLI scripts may gate on `cai workflow validate` exiting 1; MCP callers inspect `valid` and `errors`.
 - The test exercised the changed path with credible values.
 - The first unexpected node, if any, was identified rather than inferred from the final error.
 - All dynamic configs resolved to intended values.

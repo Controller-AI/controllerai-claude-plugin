@@ -5,7 +5,7 @@ description: Define Controller AI custom data types and safely read, write, impo
 
 # Controller AI data
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
 Controller AI has two separate concerns:
 
@@ -52,7 +52,9 @@ cai schema create custom.customer \
 
 Creating the schema creates/synchronizes its collection. `cai data collection create` is only an alias for schema creation.
 
-`schema update --field` replaces the complete field list; it does not append — this is deliberate, so a subset CAN intentionally replace the whole schema. Read the current schema, preserve intended fields, and disclose any removals. The CLI warns about every field being dropped and echoes back the COMPLETE stored shape after the write — always read that echo and confirm it matches intent. Deleting a schema hides its collection and records and breaks dependent expressions — tell the user, and know it is recoverable (see below).
+MCP: `cai data collection create` is merged into `schema_type_create`.
+
+`schema update --field` replaces the complete field list; it does not append — this is deliberate, so a subset CAN intentionally replace the whole schema. Read the current schema, preserve intended fields, and disclose any removals. The transport response warns about every field being dropped and echoes back the COMPLETE stored shape after the write — always read that echo and confirm it matches intent. Deleting a schema hides its collection and records and breaks dependent expressions — tell the user, and know it is recoverable (see below).
 
 ## How schema changes affect stored records
 
@@ -93,13 +95,15 @@ cai data query --type custom.customer --env dev --json
 cai data create --type custom.customer --fields '{"email":"a@example.com","score":5}' --env dev --json
 ```
 
+MCP: every data write requires explicit `env`; reads default to `dev` when `env` is omitted.
+
 Use `--env live` only when the user intends to inspect or mutate production state. Before a live write, say that published/triggered runs read this store.
 
 `data query --query` is plain-text search over serialized records and metadata, not a field predicate. Perform exact field filtering inside workflow expressions or inspect results explicitly.
 
 ## Delete records explicitly
 
-Record deletion is CLI/REST-only; no workflow data node exposes it. Delete one known record or an explicit set of IDs:
+Record deletion is available only through the control surface; no workflow data node exposes it. Delete one known record or an explicit set of IDs:
 
 ```bash
 cai data delete <recordId> --type custom.customer --env dev --json
@@ -112,7 +116,9 @@ Delete every record in a collection only with explicit user intent; `--all` also
 cai data delete-many --type custom.customer --all --yes --env dev --json
 ```
 
-The default rail is development. Use `--env live` only for an intentional production deletion, then query that same rail to verify the result.
+MCP: `data_record_delete_many` requires `env: dev` and exactly one of `recordIds` or `all: true`; it has no `yes` parameter.
+
+The default rail is development. Bulk deletion is development-only. Use `--env live` only for an intentional single-record production deletion, then query that same rail to verify the result.
 
 ## Import and promote
 
@@ -123,6 +129,8 @@ cai data import --type custom.customer --file customers.csv --mode dryRun --json
 cai data import --type custom.customer --file customers.csv --mode commit --json
 ```
 
+MCP: pass CSV text inline as `content` and `env: dev` to `data_record_import`; live import is unavailable.
+
 The commit appends. Verify result counts and query the imported rows.
 
 To seed live from development:
@@ -132,6 +140,8 @@ cai workflow publish --json
 cai data copy-to-live --type custom.customer --json
 cai data collections --env live --json
 ```
+
+MCP: call `data_copy_to_live` with the explicit acknowledgement `env: live`.
 
 The live schema must exist through a publish before copying. Treat copy-to-live as a production mutation and report counts/results.
 

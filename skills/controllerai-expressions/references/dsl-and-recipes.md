@@ -27,6 +27,8 @@ cai expr validate <httpNodeId> --prop <jsonBodyProp> --js-file body-expression.j
 cai expr set <httpNodeId> --prop <jsonBodyProp> --js-file body-expression.js --json
 ```
 
+MCP: pass the file contents inline as `js`; the set call uses `node_prop_set`.
+
 ## Same-type fallback
 
 ```js
@@ -116,5 +118,7 @@ Confirm the exact binding and field path in context.
 6. `cai run node ... --json` for isolated destination configuration
 7. `cai run flow <flowId> ... --json` when the expression consumes a wired upstream input
 8. `cai exec ports <nodeExecutionId> --json`
+
+MCP: step 4 uses `node_prop_set`; pass expression source and run inputs inline, and set `waitSeconds` on `run_node` or `run_flow` from 0 through 120.
 
 If compilation succeeds but runtime is null or partially empty, inspect `runScope`, the actual input value, and `resolvedConfigs`; do not keep rewriting syntax blindly. A node-only run cannot prove an `inputs.<name>` binding because it does not execute upstream nodes.

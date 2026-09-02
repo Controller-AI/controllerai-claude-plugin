@@ -13,7 +13,7 @@ The JSON response reports:
 - `readyForExpressions`: connection and required/reload props are complete. The source still must be wired before its binding appears in expression context.
 - `readyForRun`: connection and required/reload props are complete; running may be the step that discovers a concrete output type.
 - `readyForDownstreamExpressions`: the node is runnable and its actual process output type is concrete enough for downstream field bindings.
-- `next`: the CLI's exact next diagnostic command.
+- `next`: the canonical next diagnostic command.
 
 Follow `next`, then read status again. Do not treat `readyForRun` as proof that downstream fields are typed; require `readyForDownstreamExpressions` for that.
 
@@ -26,6 +26,8 @@ cai node set-connection <nodeId> --connection <connectionId> --json
 cai node status <nodeId> --json
 ```
 
+MCP: replace `cai connection connect` with `connection_connect_url { nodeSlug }`; the other calls map directly.
+
 ## Prop channels
 
 Use `cai node set`; it selects the persisted shape from live metadata.
@@ -35,6 +37,8 @@ Use `cai node set`; it selects the persisted shape from live metadata.
 | Static text, JSON text, scalar, object, or list | `--value` | `value` |
 | Dynamic text, JSON text, or custom data | `--js` | `valueJs` |
 | Dynamic non-text prop with expression mode | `--js` | `expressionValueJs` |
+
+MCP: both `cai node set` and `cai expr set` use `node_prop_set`; pass exactly one of `value`, `js`, or `rawExpressionJson`.
 
 Do not force a channel with internal fields. `cai node set` and `cai expr set` compile first and verify the actual channel after writing.
 
@@ -55,7 +59,7 @@ cai node options <nodeId> --prop <name> --query "<specific search>" --json
 cai node set <nodeId> --prop <name> --value '<option.value>' --label '<option.label>' --json
 ```
 
-Pass the value and label from the same live option. Remote providers often search labels rather than opaque values, so omitting `--label` can make a valid copied ID impossible to re-verify. For multi-select, pass a JSON array of returned values plus one `--label` argument per value in matching order. The CLI constructs the required array of `{value,label}` records for read-back/UI compatibility.
+Pass the value and label from the same live option. Remote providers often search labels rather than opaque values, so omitting `--label` can make a valid copied ID impossible to re-verify. For multi-select, pass a JSON array of returned values plus one `--label` argument per value in matching order. The write constructs the required array of `{value,label}` records for read-back/UI compatibility.
 
 Continue a provider page with the opaque context printed by the previous call:
 
@@ -103,4 +107,6 @@ An unresolved output blocks trustworthy downstream field expressions. Resolve it
 
 After the run, read `cai node status` and `cai expr context` again. Do not infer fields from an example response alone if the platform did not adopt a concrete type.
 
-`cai run node` and `cai run flow` pass the exact completed node-execution ID back to the backend. The backend verifies ownership, workflow, node, component snapshot, and terminal status, then derives the persisted output shape; callers never supply the type name. Adoption updates only that non-static node, so separate instances of generic components such as HTTP can learn different schemas. Inspect `outputTypeAdoption`/`outputTypeAdoptions` in the run result. If it reports `no_observed_output`, use a representative input that returns data and rerun. If it reports `error`, stop and surface that error rather than inventing a schema.
+Completed node and flow runs pass the exact node-execution ID back for ownership, workflow, node, component-snapshot, and terminal-status checks before deriving the persisted output shape; callers never supply the type name. Adoption updates only that non-static node, so separate instances of generic components such as HTTP can learn different schemas. Inspect `outputTypeAdoption`/`outputTypeAdoptions` in the run result. If it reports `no_observed_output`, use a representative input that returns data and rerun. If it reports `error`, stop and surface that error rather than inventing a schema.
+
+MCP: `run_node` and `run_flow` take `inputs` inline and `waitSeconds` from 0 through 120.

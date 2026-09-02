@@ -5,7 +5,7 @@ description: Discover, configure, create, sample, enable, test, and debug Contro
 
 # Controller AI triggers
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
 A trigger targets exactly one flow. Its source may capture events before publish, but ordinary event execution uses the live workflow. Creating the source is therefore separate from mapping, development testing, publishing, and live replay.
 
@@ -35,6 +35,8 @@ cai connection list --node <nodeSlug> --json
 cai connection connect <nodeSlug>
 ```
 
+MCP: call `connection_connect_url`; it returns the URL immediately and has no `open` or `wait` parameter.
+
 ## Resolve trigger props
 
 ```bash
@@ -45,9 +47,9 @@ cai trigger props \
   --json
 ```
 
-Use the returned shape-correct `propsExample` as a starting point. Hidden props remain unset. `readyForCreate` must be true before using it in `trigger create`; the CLI intentionally omits unresolved required option props rather than emitting a plausible placeholder.
+Use the returned shape-correct `propsExample` as a starting point. Hidden props remain unset. `readyForCreate` must be true before using it in `trigger create`; the response intentionally omits unresolved required option props rather than emitting a plausible placeholder.
 
-For each name in `unresolvedOptionProps`, run the complete option command printed by the CLI, or equivalently:
+For each name in `unresolvedOptionProps`, run the complete canonical option command returned by the transport, or equivalently:
 
 ```bash
 cai trigger options \
@@ -75,7 +77,7 @@ cai trigger props \
   --json
 ```
 
-Keep the same node, event, connection, and configured values on every reload, but always pass the LATEST `dynamicPropsId` the backend returned — a reload can mint a new ID, and reusing a stale one resolves against a stale schema. The CLI prints this complete command; do not shorten it to only `--configured`.
+Keep the same node, event, connection, and configured values on every reload, but always pass the LATEST `dynamicPropsId` the backend returned — a reload can mint a new ID, and reusing a stale one resolves against a stale schema. The response provides the complete canonical command; do not shorten it to only `--configured`.
 
 Timer values are objects:
 
@@ -117,6 +119,8 @@ Follow returned `nextSteps` in order. Trigger payload does not automatically pop
 
 `cai trigger delete <triggerId>` removes the automatic start from the development canvas; use it when the start should no longer exist. `cai trigger toggle <triggerId>` disables it reversibly by flipping its enabled state; read `cai trigger list --json` before and after because toggle is not a setter.
 
+MCP: call `trigger_set_enabled` with `enabled: true` or `enabled: false`; it reads current state and avoids a blind toggle.
+
 Both are development edits. Publish after either so production follows; until then, the previous live trigger can still start the published workflow.
 
 ## Establish a typed sample
@@ -139,13 +143,15 @@ Armed test events let real events reach the DEV version while you set the trigge
 cai trigger test-events --id <triggerId> --disallow
 ```
 
+MCP: call `trigger_test_events_set` with `allowed: false`, or `allowed: true` to arm it.
+
 The armed state is sticky: nothing disarms it for you, and dev dispatch and live dispatch are independent gates. A trigger that is armed while the workflow is also live runs ONE real event TWICE — both executions real, both billed. The starkest case is a schedule trigger: armed + enabled + published, the cron fires BOTH dev and live at every interval, forever, with no external event involved — until someone edits and republishes.
 
 Keeping a trigger armed alongside live on purpose (side-by-side comparison on real events) is legitimate but uncommon; it is a user decision, never a default.
 
 ## Verify development, then publish
 
-Use `cai run flow` for direct development verification, then replay one captured event through the development trigger path:
+Use `cai run flow` for direct development verification, then replay one captured event through the development trigger path. MCP `run_flow` calls take `waitSeconds`.
 
 ```bash
 cai trigger replay --trigger <backendTriggerId> --event <eventId> --target dev --json

@@ -5,7 +5,7 @@ description: Configure and verify AI-powered Controller AI workflow nodes, espec
 
 # Controller AI AI nodes
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
 First decide whether the capability belongs inside a deterministic workflow or in a user-facing Controller AI agent:
 
@@ -40,6 +40,8 @@ cai node options <nodeId> --prop <modelProp> --query '<model family>' --json
 cai node set <nodeId> --prop <modelProp> --value '<returned value>' --label '<returned label>' --json
 cai expr set <nodeId> --prop <promptProp> --js '<prompt expression>' --json
 ```
+
+MCP: `node set` and `expr set` both use `node_prop_set`; pass exactly one of `value` or `js` here.
 
 Model catalogs, availability, and prices change. Use current options and honor the user's cost/quality preference; do not claim a model exists because it appears in an old example.
 
@@ -80,6 +82,8 @@ cai run node <nodeId> --inputs values.json --json
 cai exec ports <nodeExecutionId> --json
 ```
 
+MCP: pass parsed values in `inputs` and set `waitSeconds` on `run_node`.
+
 Test at least: normal input, missing/ambiguous input, and an adversarial or boundary case relevant to the task. Check resolved prompt/config, output type, required fields, and values—not just that text was returned.
 
-AI execution inside the workflow is platform/API usage. Installing `cai` lets the user's subscribed coding agent build on Controller AI; it does not automatically transfer that subscription to runtime AI nodes.
+AI execution inside the workflow is platform/API usage. Access through either builder transport does not transfer the coding-agent subscription to runtime AI nodes.

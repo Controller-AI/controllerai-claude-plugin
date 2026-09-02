@@ -21,6 +21,8 @@ cai node options <nodeId> --prop <modelProp> --query '<preference>' --json
 
 Set only a returned value, and pass its matching displayed label with `cai node set ... --value '<value>' --label '<label>'`. Balance:
 
+MCP: use `node_prop_set` for the canonical `cai node set` write.
+
 - Quality/reasoning complexity
 - Latency
 - Runtime cost

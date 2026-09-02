@@ -10,6 +10,8 @@
 
 Use `cai data copy-to-live --type <custom.type>` only for an intentional data promotion.
 
+MCP: `data_copy_to_live` requires the explicit acknowledgement `env: live`.
+
 ## Safe schema update
 
 1. `cai schema get <type> --json`

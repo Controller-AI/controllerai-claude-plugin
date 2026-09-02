@@ -5,7 +5,7 @@ description: Author, validate, persist, and debug Controller AI expressions for 
 
 # Controller AI expressions
 
-In MCP hosts, send each exact literal `cai ...` command through the single `exec` tool; never translate it into another grammar.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
 Controller AI uses a restricted JavaScript-like authoring language that is compiled into the workflow engine's expression AST. It is not general JavaScript. Discover the real scope and compile before every write.
 
@@ -78,13 +78,19 @@ For a node prop, prefer:
 cai expr set <nodeId> --prop <propName> --js '<expression>' --json
 ```
 
-For multiline expressions or shell-sensitive templates, put the exact source in a UTF-8 file and use `--js-file <path>`. Use `--js-file -` to read stdin. It is mutually exclusive with inline `--js` and is available on `expr validate/set`, `node set/only-when`, and `branch add/update`.
+MCP: use `node_prop_set` with `js`; it merges `cai expr set` with `cai node set`.
+
+For multiline expressions or shell-sensitive templates on CLI, put the exact source in a UTF-8 file and use `--js-file <path>`. Use `--js-file -` to read stdin. It is mutually exclusive with inline `--js` and is available on `expr validate/set`, `node set/only-when`, and `branch add/update`.
 
 ```bash
 cai expr set <nodeId> --prop <propName> --js-file expression.js --json
 ```
 
+MCP: pass the file contents inline as `js`; the hosted process does not read the local path or stdin.
+
 This fetches target metadata, auto-enables a catalog-only optional target when needed, compiles before writing the value, persists to the correct channel, and verifies read-back. If validation or the value write then fails, the prop stays enabled; repair with `cai node disable-prop <nodeId> --prop <propName>`.
+
+MCP: repair with `node_optional_prop_set` and `enabled: false`.
 
 Array channels are not interchangeable. On a value-channel `SHORT_TEXT_ARRAY`, a scalar expression replaces the whole array with one dynamic element; it does not append. List-typed expressions on value-channel array props are rejected. Use `cai node set <nodeId> --prop <propName> --value '["a","b"]'` for a static list, or use a list-typed expression only where prop metadata exposes whole-array expression mode.
 
@@ -110,11 +116,15 @@ cai expr decompile <nodeId> --prop <propName> --json
 cai run node <nodeId> --inputs <values.json> --json
 ```
 
+MCP: `run_node` takes the parsed `inputs` object and `waitSeconds` (default 60, max 120).
+
 Use `run node` to isolate the destination's own configuration. It never executes wired upstream nodes. If the expression consumes `inputs.<name>`, also run its containing flow:
 
 ```bash
 cai run flow <flowId> --inputs <values.json> --json
 ```
+
+MCP: `run_flow` takes the parsed `inputs` object and `waitSeconds` (default 60, max 120).
 
 Inspect `runScope` and `resolvedConfigs` in the run result. A null or missing dynamic config is an expression failure, not success; a partially empty value is equally suspect. Only the full flow run proves an upstream-derived value. Use `cai exec ports <nodeExecutionId> --json` to compare inputs, resolved configs, and outputs.
 

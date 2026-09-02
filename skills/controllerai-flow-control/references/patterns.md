@@ -40,6 +40,8 @@ One order may take all three routes. If that is not acceptable, use If/Else.
 
 Use `cai flow for-each` to create the item flow, typed item input, loop node, and list wiring atomically. First run `cai node get <sourceNodeId> --json`, choose the intended `outputs[]` entry, and pass its exact opaque `id` as `--source-output`; never pass its label or assume the first output. Omit list-selection flags when the whole selected output payload is a list; use `--list-field <nested.path>` for a list below `.data`; reserve `--list-js` for an exact advanced expression or `--js-file <path|->` for that expression in a UTF-8 file/stdin. The three selection forms are mutually exclusive.
 
+MCP: call `flow_for_each_scaffold` and pass expression source inline as `listJs`.
+
 The runtime limit defaults to 500 items and supports 1 through 10000. Use `--max-items` when the intended bound differs, then verify the returned read-back. Put meaningful work inside the generated body flow and declare body outputs before consuming aggregate results.
 
 Decide explicitly whether one child-flow failure should stop the sequential loop. Use `--continue-on-error` only when partial completion is acceptable and downstream logic handles failed iteration records. It does not recover a list or mapping expression that fails before an iteration starts.
@@ -51,6 +53,8 @@ Continue-on-error is for steps whose failure must not block the main path — no
 ```bash
 cai node continue-on-error <nodeId> --enable --json
 ```
+
+MCP: call `node_continue_on_error_set` with `enabled: true` or `enabled: false`.
 
 Wiring the Error output is OPTIONAL — add it when a failure needs explicit handling, not as a precondition:
 

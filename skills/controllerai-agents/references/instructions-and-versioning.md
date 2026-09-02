@@ -73,4 +73,6 @@ Do not republish the agent merely to make a followed workflow's new live release
 | Published agent | `agent publish` version plus a new live conversation |
 | Stateful live behavior | Live conversation or trigger run reads/writes expected live records |
 
+MCP: `run_flow` takes `waitSeconds`; pass any input object inline in `inputs`.
+
 Direct actions do not create workflow execution IDs. Never claim a higher layer from only lower-layer evidence.
