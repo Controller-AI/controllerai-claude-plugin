@@ -38,7 +38,7 @@ Install the plugin from its GitHub repository. Installing the plugin loads its s
 
 1. Open the Controller AI plugin details.
 2. Open **Connectors** and select **Connect** for `controllerai`.
-3. Complete Controller AI OAuth and choose whether to connect an existing account or create an agent account.
+3. Complete Controller AI OAuth, then choose **My Controller account** to sign in or sign up and connect that Controller AI account, or **Separate agent account** to create or continue without email or a password.
 4. Start a fresh task and ask Claude to use the Controller AI connector.
 
 Cowork may also find an already installed and authenticated local `cai` CLI. That is a valid path, but it exercises the local account rather than the hosted connector. Ask Claude to use a specific path when you want to test one of them explicitly.
@@ -52,7 +52,7 @@ Cowork may also find an already installed and authenticated local `cai` CLI. Tha
 ## Requirements
 
 - Claude Code or Claude Cowork
-- A Controller AI account, or an agent account created during MCP authorization
+- No Controller AI account is required in advance: during MCP authorization, choose **My Controller account** to sign in or sign up, or **Separate agent account** to create or continue without email or a password
 - Network access to `https://mcp.getcontroller.ai/mcp` for the hosted path
 - The Controller AI `cai` CLI for the optional local path
 
