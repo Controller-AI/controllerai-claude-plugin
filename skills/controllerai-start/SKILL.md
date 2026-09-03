@@ -29,13 +29,20 @@ On the CLI, run:
 cai doctor
 ```
 
+For a new terminal assistant, `cai agent setup` detects Claude Code, Codex, and
+Cursor, ensures login, and installs the best available plugin or MCP-and-skills
+fallback; use `cai agent setup --status --json` for a read-only machine plan.
+Use `cai doctor` to compare installed version stamps and see the exact update
+command, and `cai docs [path]` (or `cai docs --list`) to read platform docs in
+the terminal.
+
 MCP: use `account_status`; local diagnosis, login, and `cai connect` do not exist.
 
 On the CLI, if authentication is missing and the human already has an account, run `cai connect`. If no account exists, run `cai signup` to create a provisional workspace and start building immediately. An unclaimed signup has the same functional access as a free account, including workflow and agent publishing; its workspace is not automatically deleted, and it has a $1 monthly usage cap (`cai signup` prints the exact amount). Email claiming is optional: run `cai signup email <address>`, ask the human account owner for the 6-digit code delivered to their inbox (never guess it), then run `cai signup verify <code>` to raise the monthly cap to $5 and enable durable account recovery. If agent signup is disabled, ask the human to register at https://app.getcontroller.ai/register, then run `cai connect`.
 
 MCP: the OAuth caller is already provisioned; use `account_claim_start` and `account_claim_verify` for optional email claiming.
 
-On the CLI, if `cai doctor` reports missing, stale, or damaged managed skills, run `cai skills update`, then run `cai doctor` again. When the `CLI version` row says a newer cai is available, upgrade before continuing (`npm install -g @controllerai/cli@latest`, then `cai skills update`) — new versions carry fixes the rest of these skills assume. Skill updates are setup maintenance, not a step to repeat during every build.
+On the CLI, if `cai doctor` reports missing, stale, or damaged managed skills, run `cai skills update`, then run `cai doctor` again. When the `CLI version` row says a newer cai is available, run `cai upgrade` before continuing — it prints the explicit CLI install command and updates detected skills, and new versions carry fixes the rest of these skills assume. Skill updates are setup maintenance, not a step to repeat during every build.
 
 MCP: use `guide_list` and `guide_get`; skill installation, updates, and CLI upgrades are not hosted-session steps. Never ask the user to paste a password, provider token, or Controller AI credential into chat.
 
