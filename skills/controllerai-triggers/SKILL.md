@@ -109,7 +109,7 @@ cai trigger create \
   --json
 ```
 
-Capture all returned IDs. `triggerId` is the canvas ID used for get/rename/toggle/delete. `backendTriggerId` is numeric and used for captured events and replay. They are not interchangeable.
+Capture all returned IDs. `triggerId` is the canvas ID used for get/rename/set-enabled/delete. `backendTriggerId` is numeric and used for captured events and replay. They are not interchangeable.
 
 Read a single trigger back with `cai trigger get <triggerId> --json` — the full record: node, event, connection, props, lifecycle. Read-back is always `get`; the CLI has no `describe` read command anywhere (`cai workflow set-description` is a setter).
 
@@ -117,9 +117,9 @@ Follow returned `nextSteps` in order. Trigger payload does not automatically pop
 
 ## Remove or disable an automatic start
 
-`cai trigger delete <triggerId>` removes the automatic start from the development canvas; use it when the start should no longer exist. `cai trigger toggle <triggerId>` disables it reversibly by flipping its enabled state; read `cai trigger list --json` before and after because toggle is not a setter.
+`cai trigger delete <triggerId>` removes the automatic start from the development canvas; use it when the start should no longer exist. `cai trigger set-enabled <triggerId> --enable|--disable` changes the enabled state reversibly and idempotently; pass exactly one state flag.
 
-MCP: call `trigger_set_enabled` with `enabled: true` or `enabled: false`; it reads current state and avoids a blind toggle.
+MCP: call `trigger_set_enabled` with `enabled: true` or `enabled: false`.
 
 Both are development edits. Publish after either so production follows; until then, the previous live trigger can still start the published workflow.
 

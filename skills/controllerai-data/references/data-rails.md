@@ -27,9 +27,9 @@ Field IDs are contracts. Prefer keeping an ID stable and changing only its displ
 ## Destructive operations
 
 - `data delete` soft-deletes one record.
-- `data delete-many --all --yes` is broad, REST-backed, and DEVELOPMENT-ONLY — `--env live` is refused (`DEV_ONLY_ROUTE`). The only live write paths are single-record `data create/update/delete --env live` and `copy-to-live`.
+- `data delete-many --all --yes` is broad and REST-backed on either rail. With `--env live`, the deletion immediately changes what the published workflow reads.
 - `schema delete` removes access to the whole collection and breaks its type references.
-- CSV `--mode commit` appends rows.
+- CSV `--mode commit` appends rows on the selected rail; a live commit is immediately visible to the published workflow. `--mode dryRun` writes nothing on either rail.
 - `copy-to-live` changes production data.
 
 Resolve exact workflow, environment, type, and record targets before these actions. Do not use a broad deletion to repair a schema mistake.

@@ -14,15 +14,15 @@ A node is ready only after its component, connection, dependency-ordered props, 
 ### 1. Find an exact component
 
 ```bash
-cai node find "<capability>" --json
-cai node component --node <nodeSlug> --key <nodeKey> --json
+cai integration actions "<capability>" --json
+cai integration action --integration <nodeSlug> --key <nodeKey> --json
 ```
 
-Use the returned `nodeSlug` and full `nodeKey`. Do not infer a component key from its display name. If discovery is broad, narrow it with:
+Use the returned `nodeSlug` and full `key`. Do not infer a component key from its display name. If discovery is broad, narrow it with:
 
 ```bash
-cai node search "<integration>" --actions --json
-cai node components "<action>" --node <nodeSlug> --json
+cai integration search "<integration>" --actions --json
+cai integration actions "<action>" --integration <nodeSlug> --json
 ```
 
 Inspect static prop metadata before creating the node. `required`, `remoteOptions`, and `reloadProps` determine configuration order.
@@ -35,15 +35,18 @@ If the component requires auth:
 cai connection list --node <nodeSlug> --json
 ```
 
-- One active connection: use its exact `connectionId`.
+- One active connection: use its exact `id` as the `connectionId`.
 - Several: use an explicit user preference; otherwise ask which account.
 - None: add the real component without `--connection`; `missingConnection: true` is a valid handoff state. On CLI, get the link with `cai connection connect <nodeSlug> --no-open` and share it right away; do not block on `--wait` before sharing.
 
-  MCP: use `connection_connect_url` with `nodeSlug` and share the returned URL right away.
+  MCP: call `connection_connect_url` with `nodeSlug`, show its `url` as a markdown link, ask the user to finish, then confirm with `connection_list` using its `integration`.
 
   After they confirm, run `cai connection list --integration <nodeSlug> --json` and bind the new ID with `cai node set-connection <nodeId> --connection <connectionId>`.
 
 Never substitute a connection from a similar slug.
+
+Rename or change the default with `cai connection update <id> [--name "<displayName>"] [--default|--no-default]` (MCP: `connection_update`); delete only intentionally with `cai connection delete <id> --yes` (MCP: `connection_delete`).
+Deleting a connection immediately removes authorization from bound nodes and agent tools.
 
 A missing connection is never a reason to substitute `registry_http-http-request` for a catalog component. A raw endpoint mentioned by the user is background context, not an instruction to hand-roll the call.
 

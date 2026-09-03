@@ -19,10 +19,11 @@ Use a workflow tool instead when the capability needs multiple operations, trans
 
 ```bash
 cai integration search "<app or capability>" --json
-cai integration actions <integrationSlug> --search "<operation>" --json
+cai integration actions "<operation>" --integration <integrationSlug> --json
+cai integration action --integration <integrationSlug> --key <actionKey> --json
 ```
 
-Preserve the returned integration `slug` and action `key` exactly. Never derive either from a display label. Continue with `--after <nextCursor>` when pagination reports more results.
+Preserve each returned `nodeSlug` and `key` pair exactly, then inspect that action's static props before using it. Never derive either identifier from a display label. Narrow the query or raise `--limit` when more matches exist.
 
 ## Select a connection
 
@@ -30,26 +31,27 @@ Preserve the returned integration `slug` and action `key` exactly. Never derive 
 cai connection list --integration <integrationSlug> --json
 ```
 
-Use an active connection whose `nodeSlug` exactly matches the integration. If none exists:
+Use an active connection whose `integration` exactly matches the integration slug. If none exists:
 
 ```bash
 cai connection connect <integrationSlug>
 ```
 
-MCP: call `connection_connect_url`; it returns the URL immediately and has no `open` or `wait` parameter.
+MCP: call `connection_connect_url`, show its `url` as a markdown link, ask the user to finish, then confirm with `connection_list` using its `integration`; it has no `open` or `wait` parameter.
 
 The connection handoff keeps provider credentials out of the agent context. The CLI may open the URL; MCP returns it. Re-list connections after the user finishes, then attach the action.
+
+Rename or change the default with `cai connection update <id> [--name "<displayName>"] [--default|--no-default]` (MCP: `connection_update`); delete only intentionally with `cai connection delete <id> --yes` (MCP: `connection_delete`).
+Deleting a connection immediately removes authorization from bound nodes and agent tools.
 
 A missing connection is never a reason to substitute `registry_http-http-request` for a catalog component. For a workflow node, add the real component and leave it unconnected; `missingConnection: true` is a valid handoff state. For a direct action, preserve the selected integration and action and stop at the connection handoff. Give the user the returned connection URL; on CLI, `cai connection connect <slug>` obtains it. A raw endpoint mentioned by the user is background context, not an instruction to hand-roll the call.
 
 ## Decide approval before attaching
 
-The product default is to run without per-call approval. Do not accept that default mechanically. Inspect the action name, description, pricing, and intended use, then decide:
+Attached actions run without a human approval step unless `requireConfirmation` is `true`. When attaching an action that sends, posts, spends, or deletes, choose `true` or explicitly tell the user that it will run unattended. Mention the confirmation choice in the report to the user.
 
-- Require confirmation for deletion, purchases or spend, external communications, permission changes, irreversible writes, or an ambiguous destination.
+- Prefer confirmation for permission changes, irreversible writes, or an ambiguous destination.
 - Usually omit confirmation for read-only retrieval and low-risk, reversible operations the user clearly asked the agent to perform autonomously.
-
-Tell the user which policy was selected and why when it has a meaningful consequence.
 
 ```bash
 cai agent add-action <agentId> \
@@ -61,9 +63,7 @@ cai agent add-action <agentId> \
   --json
 ```
 
-MCP: call `agent_tool_action_add` and pass `requireConfirmation` explicitly as `true` or `false`.
-
-Omit `--require-confirmation` on CLI only after making the decision; the CLI still sends an explicit `false`. MCP requires the boolean. Do not attach the same action twice.
+MCP: call `agent_tool_action_add`; `requireConfirmation` is optional and defaults to `false`. On CLI, `--require-confirmation` selects `true` and omission preserves the `false` default. Do not attach the same action twice.
 
 Read the saved grant back:
 

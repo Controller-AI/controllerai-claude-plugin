@@ -24,7 +24,7 @@ An empty input is not "nothing" — it evaluates to the type's empty form: empty
 - **A filter comparing against an empty value still filters — and matches NO records.** This is deliberate (fail-closed; matching everything by accident would be worse). If "empty should mean skip this filter", opt that constraint into ignore-empty mode explicitly (`ignoreEmptyConstraints`, see [references/dsl-and-recipes.md](references/dsl-and-recipes.md)).
 - **An optional TEXT input left empty arrives as `""`**, so an `equals` constraint against it matches nothing — the classic symptom is "search finds zero results only when the optional filter is blank", which then cascades (e.g. a create-if-missing step makes duplicates).
 
-When a run unexpectedly returns zero results, check the resolved configs for empty comparison values first (`cai exec ports`).
+When a run unexpectedly returns zero results, check the resolved configs for empty comparison values first (`cai exec node <nodeExecutionId> --full`).
 
 ## Required write loop
 
@@ -61,8 +61,10 @@ When compilation reports an unknown field, copy a typeable display-derived acces
 Get the current operation catalog when needed:
 
 ```bash
-cai expr ops --type <text|number|date|list|boolean|file|custom> --json
+cai expr ops --workflow <workflowId> --type <text|number|date|list|boolean|file|custom> --json
 ```
+
+The catalog is workflow-scoped because it is read from expression context. On CLI, an existing `cai use` or `CAI_WORKFLOW` selection can replace the explicit flag; MCP `expr_operation_list` always requires `workflowId`.
 
 Keep the program to optional `const` declarations followed by one final expression. Do not use loops, assignments, `new`, regular expressions, optional chaining, arbitrary library methods, or object construction unless the current compiler catalog explicitly supports them.
 
@@ -126,7 +128,7 @@ cai run flow <flowId> --inputs <values.json> --json
 
 MCP: `run_flow` takes the parsed `inputs` object and `waitSeconds` (default 60, max 120).
 
-Inspect `runScope` and `resolvedConfigs` in the run result. A null or missing dynamic config is an expression failure, not success; a partially empty value is equally suspect. Only the full flow run proves an upstream-derived value. Use `cai exec ports <nodeExecutionId> --json` to compare inputs, resolved configs, and outputs.
+Inspect `runScope` and `resolvedConfigs` in the run result. A null or missing dynamic config is an expression failure, not success; a partially empty value is equally suspect. Only the full flow run proves an upstream-derived value. Use `cai exec node <nodeExecutionId> --full --json` to inspect the final status, resolved configs, and untruncated output.
 
 ## Hard rules
 

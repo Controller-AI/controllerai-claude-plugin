@@ -117,7 +117,7 @@ Confirm the exact binding and field path in context.
 5. `cai expr decompile ...`
 6. `cai run node ... --json` for isolated destination configuration
 7. `cai run flow <flowId> ... --json` when the expression consumes a wired upstream input
-8. `cai exec ports <nodeExecutionId> --json`
+8. `cai exec node <nodeExecutionId> --full --json`
 
 MCP: step 4 uses `node_prop_set`; pass expression source and run inputs inline, and set `waitSeconds` on `run_node` or `run_flow` from 0 through 120.
 

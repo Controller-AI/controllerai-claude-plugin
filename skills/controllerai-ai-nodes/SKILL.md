@@ -18,8 +18,8 @@ First decide whether the capability belongs inside a deterministic workflow or i
 Discover the current component instead of hardcoding a key:
 
 ```bash
-cai node find "ask AI" --json
-cai node component --node <nodeSlug> --key <nodeKey> --json
+cai integration actions "ask AI" --json
+cai integration action --integration <nodeSlug> --key <nodeKey> --json
 cai node init --flow <flowId> --node <nodeSlug> --key <nodeKey> --name "<result produced>" --json
 cai node status <nodeId> --json
 ```
@@ -79,7 +79,7 @@ Read [references/selection-and-testing.md](references/selection-and-testing.md) 
 ```bash
 cai node status <nodeId> --json
 cai run node <nodeId> --inputs values.json --json
-cai exec ports <nodeExecutionId> --json
+cai exec node <nodeExecutionId> --full --json
 ```
 
 MCP: pass parsed values in `inputs` and set `waitSeconds` on `run_node`.

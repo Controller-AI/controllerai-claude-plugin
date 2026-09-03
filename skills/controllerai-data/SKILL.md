@@ -116,22 +116,22 @@ Delete every record in a collection only with explicit user intent; `--all` also
 cai data delete-many --type custom.customer --all --yes --env dev --json
 ```
 
-MCP: `data_record_delete_many` requires `env: dev` and exactly one of `recordIds` or `all: true`; it has no `yes` parameter.
+MCP: `data_record_delete_many` requires explicit `env: dev|live` and exactly one of `recordIds` or `all: true`; it has no `yes` parameter.
 
-The default rail is development. Bulk deletion is development-only. Use `--env live` only for an intentional single-record production deletion, then query that same rail to verify the result.
+The CLI default rail is development. Targeted and `--all --yes` bulk deletions also support `--env live`; a live deletion immediately changes the data read by the published workflow, so use it only with explicit production intent and query that rail afterward.
 
 ## Import and promote
 
 Validate CSV before writing:
 
 ```bash
-cai data import --type custom.customer --file customers.csv --mode dryRun --json
-cai data import --type custom.customer --file customers.csv --mode commit --json
+cai data import --type custom.customer --file customers.csv --mode dryRun --env dev --json
+cai data import --type custom.customer --file customers.csv --mode commit --env dev --json
 ```
 
-MCP: pass CSV text inline as `content` and `env: dev` to `data_record_import`; live import is unavailable.
+MCP: pass CSV text inline as `content` with explicit `env: dev|live` to `data_record_import_validate`, then use `data_record_import_commit` to write the validated content.
 
-The commit appends. Verify result counts and query the imported rows.
+Both CLI modes support `--env live`: dry-run remains non-writing, while a live commit appends rows immediately visible to the published workflow. Verify result counts and query the imported rows on the same rail.
 
 To seed live from development:
 

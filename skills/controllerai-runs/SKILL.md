@@ -90,14 +90,16 @@ A dynamic prop with a null/empty resolved config is a failure even when status i
 ## Debug from the execution tree
 
 ```bash
-cai exec tree <workflowExecutionId> --json
+cai exec tree <workflowExecutionId> --limit 50 --json
 cai exec get <workflowExecutionId> --json
 cai exec flow <flowExecutionId> --json
-cai exec node <nodeExecutionId> --json
-cai exec ports <nodeExecutionId> --json
+cai exec node <nodeExecutionId> --full --json
 ```
 
-Use the tree to locate the first unexpected status. Use ports to compare actual inputs, resolved configuration, and outputs at that node. Read [references/debugging.md](references/debugging.md) for the fault-isolation order.
+Page with the returned `nextCursor` via `--cursor`; narrow large runs with repeatable `--status`
+or `--flow <flowId>`. Use the tree to locate the first unexpected status. Use the full node
+execution to inspect its status, resolved configuration, and untruncated output. Read
+[references/debugging.md](references/debugging.md) for the fault-isolation order.
 
 ## Output discovery
 

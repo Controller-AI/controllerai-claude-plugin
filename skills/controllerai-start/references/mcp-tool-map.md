@@ -2,7 +2,7 @@
 
 # CLI to typed MCP tool map
 
-This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI examples remain the canonical grammar; typed MCP calls use the tool and camelCase parameters shown here. Global `--json` and `--api-url` flags are host-controlled and omitted.
+This registry-derived map covers 162 CLI commands and 149 typed MCP tools. CLI examples remain the canonical grammar; typed MCP calls use the tool and camelCase parameters shown here. Global `--json` and `--api-url` flags are host-controlled and omitted.
 
 | `cai` command | MCP tool | Parameter mapping | Notes |
 | --- | --- | --- | --- |
@@ -21,7 +21,7 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai agent files` | `agent_file_list` | `<agentId>` → `agentId`; `--cursor` → `cursor`; `--environment` → `environment`; `--folder-prefix` → `folderPrefix`; `--limit` → `limit`; `--live` → `live`; `--search` → `search`; `--space` → `space` | — |
 | `cai agent get` | `agent_get` | `<agentId>` → `agentId` | — |
 | `cai agent list` | `agent_list` | `--ownership` → `ownership`; `--search` → `search` | — |
-| `cai agent present` | — | — | dropped: Renders a build-chat card; the MCP host owns presentation. |
+| `cai agent present` | `agent_present` | `<agentId>` → `agentId`; `note` (MCP-only) → `note` | hosted: Returns a hosted agent summary and app link for the MCP host to present. |
 | `cai agent publish` | `agent_publish` | `<agentId>` → `agentId`; `--name` → `name` | — |
 | `cai agent publish-preflight` | `agent_publish_preflight` | `<agentId>` → `agentId` | — |
 | `cai agent remove-tool` | `agent_tool_remove` | `<agentId>` → `agentId`; `--tool` → `toolId` | — |
@@ -47,8 +47,10 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai config reset` | — | — | dropped: Clears a local workflow pin; typed MCP calls are stateless. |
 | `cai connect` | — | — | dropped: Installs local skills, opens a browser, and verifies a local project. |
 | `cai connection connect` | `connection_connect_url` | `<nodeSlug>` → `nodeSlug` | — |
+| `cai connection delete` | `connection_delete` | `<connectionId>` → `connectionId` | — |
 | `cai connection list` | `connection_list` | `--integration` → `integration` | — |
 | `cai connection request` | — | — | dropped: Posts a connect card into build chat; connection_connect_url supplies the hosted outcome. |
+| `cai connection update` | `connection_update` | `<connectionId>` → `connectionId`; `--name` → `displayName`; `--default` / `--no-default` → `isDefault` | — |
 | `cai data collection create` | `schema_type_create` | `<dataType>` → `name`; `--display` → `display`; `--field` → `field`; `--from-json` → `fromJson` (inline content); `--workflow` → `workflowId` | merged: The CLI command is sugar over schema create; no separate collection-create route exists. |
 | `cai data collections` | `data_collection_list` | `--env` → `env`; `--workflow` → `workflowId` | — |
 | `cai data copy-to-live` | `data_copy_to_live` | `--type` → `type`; `--workflow` → `workflowId`; `env` (MCP-only) → `env` | `env` required |
@@ -67,14 +69,13 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai exec get` | `execution_get` | `<workflowExecutionId>` → `workflowExecutionId`; `--workflow` → `workflowId` | — |
 | `cai exec list` | `execution_list` | `--limit` → `limit`; `--workflow` → `workflowId` | — |
 | `cai exec node` | `execution_node_get` | `<nodeExecutionId>` → `nodeExecutionId`; `--full` → `full`; `--workflow` → `workflowId` | — |
-| `cai exec ports` | `execution_node_ports` | `<nodeExecutionId>` → `nodeExecutionId`; `--full` → `full`; `--workflow` → `workflowId` | — |
-| `cai exec tree` | `execution_tree` | `<workflowExecutionId>` → `workflowExecutionId`; `--workflow` → `workflowId` | — |
+| `cai exec tree` | `execution_tree` | `<workflowExecutionId>` → `workflowExecutionId`; `--cursor` → `cursor`; `--flow` → `flowId`; `--limit` → `limit`; `--status` → `status`; `--workflow` → `workflowId` | — |
 | `cai expr context` | `expr_context` | `<nodeId>` → `nodeId`; `--methods` → `methods`; `--prop` → `prop`; `--workflow` → `workflowId` | — |
 | `cai expr decompile` | `expr_decompile` | `<nodeId>` → `nodeId`; `--prop` → `prop`; `--workflow` → `workflowId` | — |
 | `cai expr ops` | `expr_operation_list` | `--type` → `type`; `--workflow` → `workflowId` | — |
 | `cai expr set` | `node_prop_set` | `<nodeId>` → `nodeId`; `--js` / `--js-file` → `js` (inline content); `label` (MCP-only) → `label`; `--prop` → `prop`; `rawExpressionJson` (MCP-only) → `rawExpressionJson`; `value` (MCP-only) → `value`; `--workflow` → `workflowId`; `valueJson` (MCP-only) → `valueJson` | merged: node_prop_set exposes the same expression write alongside literal and raw-expression forms. |
 | `cai expr validate` | `expr_validate` | `<nodeId>` → `nodeId`; `--js` / `--js-file` → `js` (inline content); `--mode` → `mode`; `--prop` → `prop`; `--workflow` → `workflowId` | — |
-| `cai file share` | — | — | dropped: Uploads a local path into build chat, which a hosted MCP process cannot read or present. |
+| `cai file share` | `file_share` | `--name` → `name`; `content` (MCP-only) → `content`; `encoding` (MCP-only) → `encoding`; `mimeType` (MCP-only) → `mimeType` | hosted: Stores inline bytes as a private artifact and returns its browser-openable link. |
 | `cai flow create` | `flow_create` | `--name` → `name`; `--workflow` → `workflowId` | — |
 | `cai flow delete` | `flow_delete` | `<flowId>` → `flowId`; `--workflow` → `workflowId` | — |
 | `cai flow duplicate` | `flow_duplicate` | `<flowId>` → `flowId`; `--workflow` → `workflowId` | — |
@@ -91,22 +92,12 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai flow outputs` | `flow_output_list` | `<flowId>` → `flowId`; `--workflow` → `workflowId` | — |
 | `cai flow rename` | `flow_rename` | `<flowId>` → `flowId`; `--name` → `name`; `--workflow` → `workflowId` | — |
 | `cai flow reorder` | `flow_reorder` | `--order` → `order`; `--workflow` → `workflowId` | — |
-| `cai folder create` | `folder_create` | `--name` → `name` | — |
-| `cai folder delete` | `folder_delete` | `<folderId>` → `folderId` | — |
-| `cai folder list` | `folder_list` | — | — |
-| `cai folder rename` | `folder_rename` | `<folderId>` → `folderId`; `--name` → `name` | — |
-| `cai integration actions` | `integration_action_list` | `<integration>` → `integration`; `--after` → `after`; `--limit` → `limit`; `--search` → `search` | — |
-| `cai integration search` | `integration_search` | `<query>` → `query`; `--after` → `after`; `--limit` → `limit` | — |
-| `cai label add` | `label_attach` | `<labelId>` → `labelId`; `--workflow-id` / `--workflow` → `workflowId` | — |
-| `cai label create` | `label_create` | `--color` → `color`; `--name` → `name` | — |
-| `cai label create-and-add` | `label_create_and_attach` | `--color` → `color`; `--name` → `name`; `--workflow-id` / `--workflow` → `workflowId` | — |
-| `cai label delete` | `label_delete` | `<labelId>` → `labelId` | — |
+| `cai integration action` | `integration_action_get` | `--integration` → `integration`; `--key` → `key` | — |
+| `cai integration actions` | `integration_action_list` | `<query>` → `query`; `--integration` → `integration`; `--limit` → `limit` | — |
+| `cai integration search` | `integration_search` | `<query>` → `query`; `--limit` → `limit`; `--actions` → `kind=actions`; `--events` → `kind=events`; `` → `kind=all` | — |
 | `cai label list` | `label_list` | — | — |
-| `cai label remove` | `label_detach` | `<labelId>` → `labelId`; `--workflow-id` / `--workflow` → `workflowId` | — |
-| `cai label rename` | `label_rename` | `<labelId>` → `labelId`; `--name` → `name` | — |
+| `cai label set` | `label_set` | `--agent` → `agentId`; `--labels` / `--label` / `--none` → `labels`; `--workflow` → `workflowId` | — |
 | `cai node add` | `node_add` | `--after` → `after`; `--connection` → `connection`; `--enable-prop` → `enableProp`; `--flow` → `flow`; `--key` → `key`; `--name` → `name`; `--node` → `node`; `--output` → `output`; `--props` → `props`; `--workflow` → `workflowId` | — |
-| `cai node component` | `node_component_get` | `--key` → `key`; `--node` → `node`; `--workflow` → `workflowId` | — |
-| `cai node components` | `node_component_list` | `<query>` → `query`; `--limit` → `limit`; `--node` → `node`; `--workflow` → `workflowId` | — |
 | `cai node connect` | `node_connect` | `--flow` → `flow`; `--from` → `from`; `--output` → `output`; `--to` → `to`; `--workflow` → `workflowId` | — |
 | `cai node continue-on-error` | `node_continue_on_error_set` | `<nodeId>` → `nodeId`; `--enable` / `--disable` → `enabled`; `--workflow` → `workflowId` | — |
 | `cai node declare-output` | `node_output_type_declare` | `<nodeId>` → `nodeId`; `--sample-file` → `sample` (inline content); `--workflow` → `workflowId` | — |
@@ -115,7 +106,6 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai node disconnect` | `node_disconnect` | `--edge` → `edge`; `--workflow` → `workflowId` | — |
 | `cai node duplicate` | `node_duplicate` | `<nodeId>` → `nodeId`; `--workflow` → `workflowId` | — |
 | `cai node enable-prop` | `node_optional_prop_set` | `<nodeId>` → `nodeId`; `--prop` → `prop`; `--workflow` → `workflowId`; `enabled` (MCP-only) → `enabled` | merged: The explicit enabled boolean replaces the separate enabling command. |
-| `cai node find` | `node_find` | `<intent>` → `intent`; `--limit` → `limit`; `--node` → `node`; `--workflow` → `workflowId` | — |
 | `cai node get` | `node_get` | `<nodeId>` → `nodeId`; `--workflow` → `workflowId` | — |
 | `cai node only-when` | `node_only_when_set` | `<nodeId>` → `nodeId`; `--clear` → `clear`; `--js` / `--js-file` → `js` (inline content); `--workflow` → `workflowId` | — |
 | `cai node optional-props` | `node_optional_prop_list` | `<nodeId>` → `nodeId`; `--workflow` → `workflowId` | — |
@@ -123,7 +113,6 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai node props` | `node_prop_list` | `<nodeId>` → `nodeId`; `--workflow` → `workflowId` | — |
 | `cai node reload` | `node_prop_reload` | `<nodeId>` → `nodeId`; `--workflow` → `workflowId` | — |
 | `cai node rename` | `node_rename` | `<nodeId>` → `nodeId`; `--name` → `name`; `--workflow` → `workflowId` | — |
-| `cai node search` | `node_search` | `<query>` → `query`; `--actions` → `actions`; `--events` → `events`; `--limit` → `limit`; `--workflow` → `workflowId` | — |
 | `cai node set` | `node_prop_set` | `<nodeId>` → `nodeId`; `--js` / `--js-file` → `js` (inline content); `--label` → `label`; `--prop` → `prop`; `--raw-expression-json` → `rawExpressionJson` (inline content); `--value` → `value`; `--workflow` → `workflowId`; `--value` → `valueJson` | — |
 | `cai node set-connection` | `node_connection_set` | `<nodeId>` → `nodeId`; `--connection` → `connection`; `--workflow` → `workflowId` | — |
 | `cai node set-flow` | `node_subflow_set` | `<nodeId>` → `nodeId`; `--flow` → `flow`; `--workflow` → `workflowId` | — |
@@ -158,16 +147,16 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai trigger replay` | `trigger_replay` | `--confirm-live` → `confirmLive`; `--event` → `eventId`; `--payload` → `payload`; `--target` → `target`; `--trigger` → `triggerId`; `--workflow` → `workflowId` | — |
 | `cai trigger search` | `trigger_search` | `<query>` → `query`; `--events-per-node` → `eventsPerNode`; `--limit` → `limit`; `--node` → `node`; `--workflow` → `workflowId` | — |
 | `cai trigger select-event` | `trigger_event_select` | `--event` → `eventId`; `--node` → `triggerNodeId`; `--workflow` → `workflowId` | — |
+| `cai trigger set-enabled` | `trigger_set_enabled` | `<triggerId>` → `triggerId`; `--enable` / `--disable` → `enabled`; `--workflow` → `workflowId` | merged: The explicit enabled boolean combines the mutually exclusive enable and disable flags. |
 | `cai trigger test-events` | `trigger_test_events_set` | `<triggerId>` → `triggerId`; `--acknowledge-dual-run` → `acknowledgeDualRun`; `--allow` / `--disallow` → `allowed`; `--workflow` → `workflowId` | — |
-| `cai trigger toggle` | `trigger_set_enabled` | `<triggerId>` → `triggerId`; `--workflow` → `workflowId`; `enabled` (MCP-only) → `enabled` | merged: The hosted setter reads current state and only invokes the CLI toggle when state differs. |
 | `cai use` | — | — | dropped: Persists a local workflow pin; every typed workflow call carries an explicit id. |
 | `cai workflow create` | `workflow_create` | `--name` → `name` | — |
 | `cai workflow delete` | `workflow_delete` | `<workflowId>` / `--workflow` → `workflowId` | — |
+| `cai workflow document` | `workflow_document_get` | `--state` → `stateId`; `--workflow` → `workflowId` | — |
 | `cai workflow duplicate` | `workflow_duplicate` | `<workflowId>` / `--workflow` → `workflowId` | — |
 | `cai workflow get` | `workflow_get` | `<workflowId>` / `--workflow` → `workflowId` | — |
 | `cai workflow history` | `workflow_history` | `--group` → `group`; `--version` → `version`; `--workflow` → `workflowId` | — |
 | `cai workflow list` | `workflow_list` | `--limit` → `limit` | — |
-| `cai workflow move` | `workflow_move` | `--folder` → `folderId`; `<workflowId>` / `--workflow` → `workflowId` | — |
 | `cai workflow outline` | `workflow_outline` | `<workflowId>` / `--workflow` → `workflowId` | — |
 | `cai workflow publish` | `workflow_publish` | `--acknowledge-dual-dispatch` → `acknowledgeDualDispatch`; `--acknowledge-validation-errors` → `acknowledgeValidationErrors`; `--name` → `name`; `--workflow` → `workflowId` | — |
 | `cai workflow releases` | `workflow_release_list` | `<workflowId>` / `--workflow` → `workflowId` | — |
@@ -175,7 +164,7 @@ This registry-derived map covers 173 CLI commands and 158 typed MCP tools. CLI e
 | `cai workflow restore` | `workflow_state_restore` | `--state` → `stateId`; `--version` → `version`; `--workflow` → `workflowId` | — |
 | `cai workflow save` | `workflow_state_save` | `--name` → `name`; `--workflow` → `workflowId` | — |
 | `cai workflow set-description` | `workflow_description_set` | `--description` → `description`; `<workflowId>` / `--workflow` → `workflowId` | — |
-| `cai workflow state` | `workflow_state_get` | `--full` → `full`; `--state` → `stateId`; `--workflow` → `workflowId` | — |
+| `cai workflow state` | `workflow_state_get` | `--flow` → `flowId`; `--state` → `stateId`; `--workflow` → `workflowId` | — |
 | `cai workflow status` | `workflow_status` | `--workflow` → `workflowId` | — |
 | `cai workflow validate` | `workflow_validate` | `--workflow` → `workflowId` | — |
 | `cai workflow versions` | `workflow_version_list` | `<workflowId>` / `--workflow` → `workflowId` | — |

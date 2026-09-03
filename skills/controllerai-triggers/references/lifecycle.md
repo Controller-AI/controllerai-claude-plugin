@@ -23,7 +23,7 @@ Skipping capture/sample selection commonly leaves downstream output untyped. Ski
 
 | ID | Used by |
 | --- | --- |
-| Canvas `triggerId` | `trigger get`, `rename`, `toggle`, `delete` |
+| Canvas `triggerId` | `trigger get`, `rename`, `set-enabled`, `delete` |
 | Numeric `backendTriggerId` | `trigger events`, `replay` |
 | `triggerNodeId` | `trigger select-event` |
 | Captured `eventId` | `trigger event`, `select-event`, `replay --event` |
@@ -40,7 +40,7 @@ Use `--target live --confirm-live` only for an intentional post-publish live ver
 
 ## Enable/disable
 
-`cai trigger toggle <triggerId>` flips state; it is not a setter. Read `cai trigger list --json` before and after. Do not toggle blindly.
+`cai trigger set-enabled <triggerId> --enable|--disable` sets the requested state idempotently. Pass exactly one state flag.
 
 MCP: call `trigger_set_enabled` with `enabled: true` or `enabled: false`.
 

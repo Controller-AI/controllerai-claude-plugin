@@ -16,23 +16,25 @@ MCP: `run_flow` takes `waitSeconds` and may return before the execution is termi
 ## 2. Find the first divergence
 
 ```bash
-cai exec tree <workflowExecutionId> --json
+cai exec tree <workflowExecutionId> --limit 50 --json
 ```
 
-Classify each node as completed, failed, skipped intentionally, skipped unexpectedly, or absent. The first divergence is usually the cause; later failures are often consequences.
+Follow `nextCursor` with `--cursor`, and use repeatable `--status` or `--flow <flowId>` when the
+run is large. Classify each node as completed, failed, skipped intentionally, skipped unexpectedly,
+or absent. The first divergence is usually the cause; later failures are often consequences.
 
 ## 3. Inspect the node boundary
 
 ```bash
-cai exec ports <nodeExecutionId> --json
+cai exec node <nodeExecutionId> --full --json
 ```
 
 Check:
 
-1. Inputs: did the expected upstream value arrive?
-2. Configs: did each expression resolve, and to the correct type/value?
-3. Outputs: did the component return the promised shape?
-4. Status/error: did the provider or engine reject the call?
+1. Resolved configs: did each expression resolve, and to the correct type/value?
+2. Output: did the component return the promised shape and value?
+3. Status/error: did the provider or engine reject the call?
+4. Upstream execution rows and wiring: did every expected producer run and connect to this node?
 
 ## 4. Fix by category
 

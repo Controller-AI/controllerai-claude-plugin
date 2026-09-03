@@ -66,7 +66,7 @@ cai agent add-workflow <agentId> \
   --json
 ```
 
-MCP: use `agent_tool_action_add` or `agent_tool_workflow_add` and always pass `requireConfirmation`.
+MCP: use `agent_tool_action_add` or `agent_tool_workflow_add`; `requireConfirmation` is optional and defaults to `false`.
 
 ```bash
 cai agent add-file <agentId> --file <path> --space <knowledge|shared> --json
@@ -79,7 +79,7 @@ MCP: use `agent_knowledge_file_add` for knowledge or `agent_workspace_file_add` 
 
 Adding with `--space shared` updates the live runtime file space immediately without publishing; an active agent sees it on the next turn, a disabled agent after enablement.
 
-Permission is part of agent design. Settle each tool's approval level WITH the user before attaching: present the tool list and ask which steps need a human in the loop ("should sending the email require your approval each time, or run automatically?"). The default is no approval. Add `--require-confirmation` for consequential writes, deletion, external communications, permission changes, purchases/spend, or an ambiguous destination; `cai agent update-tool` changes it later. MCP attachment/update tools require `requireConfirmation: true` or `false`. Omitting the CLI flag must be an informed autonomy decision, not an unnoticed default.
+The default is no approval: attached actions and workflow tools run without a human approval step unless `requireConfirmation` is `true`, and omitting `--require-confirmation` has the same behavior. When attaching an action that sends, posts, spends, or deletes, choose `true` or explicitly tell the user that it will run unattended. Mention the confirmation choice in the report to the user; `cai agent update-tool` can change it later.
 
 Keep the two modes straight:
 
@@ -127,6 +127,8 @@ MCP: `agent_test` requires `rail: draft` or `rail: live` and takes `waitSeconds`
 Test requests that should and should not select each tool. Verify exact arguments, truthful use of results, errors, and knowledge behavior.
 
 Also offer the agent's app page so the user can try the draft hands-on before publishing (outputs include `appUrl` when the app origin is known); their impression outweighs your transcript reading.
+
+MCP: call `agent_present` for the finished agent and relay the returned card with its name, purpose, tools, and link.
 
 - For a workflow tool, correlate a side-effectful call with its terminal workflow execution ID.
 - For a direct integration action, inspect persisted conversation action events/run result and the intended external effect. Direct actions do not create workflow execution IDs.

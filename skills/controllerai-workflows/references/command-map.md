@@ -10,13 +10,13 @@ cai doctor
 cai config reset [--local|--global]
 cai auth status
 cai workflow list|create|get|rename|set-description|duplicate|delete
-cai workflow state|status|versions|releases|history|save|restore|publish
+cai workflow document|state|status|versions|releases|history|save|restore|publish
 cai use <workflowId>
 ```
 
 MCP: `account_status` replaces `auth status` and `doctor`; `cai connect`, `config reset`, and `use` are local-only, so pass `workflowId` explicitly.
 
-`workflow save` creates a named development checkpoint. `workflow publish` promotes development to live. Version history may be plan-gated. `workflow delete --yes` undeploys triggers and soft-deletes the workflow row; it refuses while any draft or LIVE agent depends on the workflow. Detach draft tools with `agent remove-tool`, publish detached drafts that are still LIVE, then retry. `--force` is deprecated and inert. Deletion is not a permanent history purge, and deleted rows currently have no CLI restore command.
+`workflow state` is a bounded projection; use `--flow <flowId>` for node and edge identities. `workflow document` returns the complete opaque JSON. `workflow save` creates a named development checkpoint. `workflow publish` promotes development to live. Version history may be plan-gated. `workflow delete --yes` undeploys triggers and soft-deletes the workflow row; it refuses while any draft or LIVE agent depends on the workflow. Detach draft tools with `agent remove-tool`, publish detached drafts that are still LIVE, then retry. `--force` is deprecated and inert. Deletion is not a permanent history purge, and deleted rows currently have no CLI restore command.
 
 ## Canvas and graph
 
@@ -24,7 +24,7 @@ MCP: `account_status` replaces `auth status` and `doctor`; `cai connect`, `confi
 cai flow list|get|create|rename|duplicate|delete|reorder|layout
 cai flow input add|update|delete
 cai flow output add|update|delete
-cai node find|search|components|component
+cai integration search|actions|action
 cai node init|status|get|props|set|connect|disconnect|delete
 ```
 
@@ -62,7 +62,7 @@ MCP: `run_node` and `run_flow` take `waitSeconds` (default 60, maximum 120). `ru
 
 ```text
 cai connection list|connect
-cai trigger list|get|search|props|options|create|events|event|select-event|replay|toggle|rename|delete
+cai trigger list|get|search|props|options|create|events|event|select-event|replay|set-enabled|rename|delete
 cai schema list|get|resolve|create|update|delete
 cai data collections|fields|query|get|create|update|delete|delete-many|import|copy-to-live
 cai agent list|get|create|update|add-workflow|remove-tool|add-file|tools|publish-preflight|publish|versions|visibility
@@ -71,7 +71,7 @@ cai agent conversation list|create|status|history|send|approve|deny
 
 Connections are authorized in a browser. The CLI returns and may open the URL; MCP returns it from `connection_connect_url`.
 
-MCP: use `trigger_set_enabled` with explicit `enabled` instead of `trigger toggle`.
+MCP: `trigger_set_enabled` takes the same explicit enabled state as the CLI setter.
 
 MCP: every data write requires explicit `env`; pass CSV text inline as `content` to `data_record_import`, and pass `env: "live"` to `data_copy_to_live`.
 
