@@ -7,7 +7,18 @@ description: Design and configure Controller AI execution paths using only-when 
 
 The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
-Choose the primitive from the intended execution semantics before adding nodes.
+Choose by intended runtime semantics.
+
+## Rules that break tasks when skipped
+
+- Guard the exact action with node `only-when`; see Conditions.
+- Use If/Else for one path and Router for all matches; see Pick the correct primitive.
+- Keep downstream wiring after node-only skip; see Conditions.
+- Never invent a missing condition or Router order; see If/Else and Router.
+- Build standard loops only with `flow for-each`; see Loops.
+- Converge paths through Join Paths; see Subflows and convergence.
+- Fail missing comparisons closed; keep money paths blocking. See Conditions, Loops, and the error pattern.
+- Never acknowledge validation errors without explicit approval; see `controllerai-workflows` Lifecycle rules.
 
 ## Pick the correct primitive
 
@@ -39,6 +50,10 @@ cai node only-when <nodeId> --js '<boolean expression>' --json
 
 Use `--clear` only when the user's intent is to remove the guard.
 
+Guard the action that must skip. Do not substitute If/Else for a node-only skip. Its `only_when_false` does not block ordinary output; downstream remains eligible. Keep wiring. Guard downstream separately or branch if it must also skip.
+
+Node `only-when` takes one restricted boolean through `--js` or `--js-file`, or grouped conditions through `--groups-json '[["a","b"],["c"]]'` (inner arrays are AND, outer rows are OR). Root scalar `&&` or `||` inside one expression is unsupported; use `--groups-json` for compound guards. Grouped `string[][]` conditions exist only on branch add/update, with outer rows OR and inner entries AND. Use them only when branch semantics fit. If an exact compound node-only guard is required, report it as unsupported; do not weaken the rule or probe private APIs. For a missing number that must fail `< 5`, use a same-type boundary such as `(flow.unitsLeft ?? 5) < 5`.
+
 Choose the primitive by the runtime signal that callers and tests need. A false node `only-when` records `skipReason: "only_when_false"`; a node on an untaken If/Else branch or unmatched Router route records `skipReason: "upstream_skipped"`.
 
 ## If/Else and Router
@@ -50,6 +65,8 @@ cai branch list <controlNodeId> --json
 ```
 
 A fresh If/Else already contains one blank `If` branch and an Else branch. The blank condition is a publish/runtime blocker: copy that default branch ID from `branch list` and update it before adding another condition branch. Do not leave the default blank and create a replacement beside it.
+
+Never invent a missing condition from node names, current values, or one observed run. If no authoritative platform surface supplies the business rule, leave the branch blank, report the blocker, and ask the user.
 
 ```bash
 cai branch update <ifElseNodeId> \
@@ -73,7 +90,7 @@ For If/Else, order is behavior:
 cai branch reorder <ifElseNodeId> --order <conditionId1,conditionId2> --json
 ```
 
-List every condition branch exactly once and omit Else; the operation keeps Else last. Router routes cannot be reordered because every match runs.
+List every condition branch exactly once and omit Else; the operation keeps Else last. Router routes cannot be reordered because every match runs. Do not simulate order by deleting a route or serializing its downstream nodes. Leave the fan-out unchanged unless the user explicitly authorizes a redesign.
 
 After edits, run `cai branch list` again. Treat its warnings about missing conditions or unwired paths as blockers: an unwired selected path can end with an apparently green execution.
 
@@ -136,19 +153,26 @@ MCP: `cai node set-flow` maps to `node_subflow_set`.
 
 Setting the target flow creates mapping props from the target's current inputs. If those inputs later change, run `set-flow` again and reconfigure mappings.
 
-When paths converge, inspect the concrete graph and execution behavior. Do not assume wiring two paths to one action creates a barrier or waits for both. If the requirement is a true join, discover a join-capable component and verify it with representative branch timing.
+For one action after whichever exclusive branch runs, use `registry_flow-merge` (Join Paths) in `chooseActivePath` mode, then place the shared action after it. Never wire several branches directly to an ordinary node or duplicate the shared action. Follow the exact recipe in [references/patterns.md](references/patterns.md) and test each branch once.
 
-Return semantics: a flow that should return data needs a Return response node — without one it returns nothing, and callers (including agents invoking it as a tool) see silent success with empty output. If several Return response nodes complete in one execution, their result objects merge in execution order and a later node silently overwrites an earlier value for the same field. Design for exactly one Return per path unless merging is the intent.
+Return semantics: a flow that should return data needs `registry_flow-return-response`; without it callers see empty success. Declare outputs first, initialize that exact component after the producer, then bind its generated prop with `cai expr set`. Do not guess component keys. See [references/patterns.md](references/patterns.md). Multiple completed Return nodes merge, with later values overwriting earlier ones; design for one Return per path unless merging is intended.
 
-Deleting a flow is a normal, undoable edit: it removes the flow's nodes, edges, inputs/outputs, and attached triggers, and unlinks run-subflow callers in other flows — the same way deleting a function breaks its call sites. No confirmation ceremony is needed; run `cai workflow validate` afterwards to see every break, fix or remove the callers it lists, and `cai workflow restore` if the deletion was a mistake. Turning `continueOnError` off is the same class: it deletes the node's Error output and every edge from it — validate after, restore if regretted.
+Deleting a flow removes its graph, contract, triggers, and caller links. Validate and restore if mistaken. Turning `continueOnError` off also deletes its Error output and edges; validate and restore likewise.
 
 Read [references/patterns.md](references/patterns.md) for concise canonical patterns.
 
-## Completion gate
+## Before you finish
+
+```bash
+cai branch list <controlNodeId> --json
+cai workflow validate --json
+cai run flow <flowId> --inputs <values.json> --json
+cai exec tree <workflowExecutionId> --json
+```
 
 - Every branch has the intended condition and a wired target.
 - If/Else ordering matches priority and Else remains last.
 - Router fan-out is intentional when more than one condition can be true.
 - Loop item type and list expression compile against actual source data.
 - Expected true, false/Else, empty-list, one-item, several-item, over-limit, and error paths are tested.
-- `cai exec tree <workflowExecutionId>` contains no unexplained skipped or missing nodes.
+- The execution tree shows intended `only_when_false` or `upstream_skipped` reasons and no unexplained missing nodes.

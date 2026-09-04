@@ -12,7 +12,18 @@ Controller AI has two separate concerns:
 - A `custom.*` schema defines fields and makes a collection available.
 - Development and live record stores hold separate rows. Publishing graph/configuration does not copy records.
 
+## Rules that break tasks when skipped
+
+- Persisting data requires both a schema and a create-record node; see A type vs a stored record.
+- `schema update --field` replaces the full field list; see Define a schema deliberately.
+- Relabel a stable key instead of recreating it; see How schema changes affect stored records.
+- Query results and writes use different field keys; see Respect field-key asymmetry.
+- Read and write the requested dev or live store; see Work on the correct rail.
+- Remove only scratch schemas created for abandoned attempts; see Before you finish.
+
 ## A type vs a stored record
+
+When a request says store, save, log, or record with no external destination, create the schema and configure a create-record node. A flow output alone is not persistence.
 
 `custom.customer` and `dataRecord.custom.customer` are different things, and the difference carries through everything:
 
@@ -69,7 +80,13 @@ Schema changes never hard-delete data. There is no delete path for records in sc
 
 The truly destructive operations are record-level only: `data delete`, `data delete-many`, and overwriting edits. Those have no undo — treat them with explicit user intent; everything schema-shaped is safely reversible.
 
-One rename trap: renaming a type key is create-new + deactivate-old — all existing records stay stranded under the OLD key's collection, invisible. Migrate records explicitly (export/import) or rename back to recover.
+Relabel a type without changing its stable key:
+
+```bash
+cai schema update custom.customer --display "Customers" --json
+```
+
+Changing `custom.customer` itself is a key migration, not a relabel. It creates a new type and deactivates the old collection, stranding its records under the old key. Migrate records explicitly by export/import or restore the old key.
 
 ## Respect field-key asymmetry
 
@@ -150,3 +167,18 @@ The live schema must exist through a publish before copying. Treat copy-to-live 
 `workflowData("custom.customer")` requires an active collection on the executing rail. Read `controllerai-expressions` for filtering. Test stateful behavior against development, then independently verify required live seed data.
 
 Read [references/data-rails.md](references/data-rails.md) before schema rewrites, deletion, bulk deletion, import, or copy-to-live.
+
+## Before you finish
+
+```bash
+cai schema get custom.<type> --json
+cai data collections --env <dev|live> --json
+cai data query --type custom.<type> --env <dev|live> --json
+cai workflow outline --json
+cai workflow validate --json
+```
+
+- Schema read-back must show the intended stable key, display, complete field list, and field types.
+- The same-rail query must prove the expected persisted records; node output alone is insufficient.
+- Compare schema and workflow inventory with the request. Remove only schemas created during abandoned attempts, never pre-existing user objects.
+- For a live request, verify the live collection after publish or copy and report the affected record count.

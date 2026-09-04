@@ -9,6 +9,13 @@ The `cai ...` examples are canonical grammar. Use the transport selected in `con
 
 Ready integration actions give a hosted agent one app operation without first building a workflow. Use the canonical operations below through the selected transport; do not call Controller AI REST routes directly.
 
+## Rules that break tasks when skipped
+
+- Attach one existing app operation directly; never wrap it in a one-node workflow. See Choose direct action or workflow.
+- Capture the exact integration, action, connection, and tool IDs. See Discover exact identities.
+- Decide confirmation before attachment, especially for writes or spend. See Decide approval before attaching.
+- Verify persisted direct-action events, not a workflow execution ID. See Verify through the hosted agent.
+
 ## Choose direct action or workflow
 
 Use a direct action for one existing operation such as sending one message, creating one record, or adding one row.
@@ -105,3 +112,14 @@ If confirmation is required, inspect the pending action and exact arguments befo
 Publishing snapshots the action identity, description, and approval policy into the agent version. The connection and authorization grant remain live security bindings: rebinding can redirect the published action, while breakage, revocation, or detachment can stop it immediately without another agent publish. Detachment also removes the draft tool; publish afterward to remove the unavailable tool from the published list.
 
 Organization members use the published agent, never its mutable draft. Direct actions run through the agent owner's connected external account. Controller AI usage draws from the organization's shared usage pool, regardless of which member calls the agent. State that credential boundary before organization sharing.
+
+## Before you finish
+
+```bash
+cai agent tools <agentId> --json
+cai agent conversation history <conversationId> --json
+```
+
+- Tools must show one intended direct attachment with the exact returned identities, connection, description, and confirmation policy.
+- History must contain the persisted action event, exact arguments, and result; confirm any requested external effect separately.
+- No wrapper workflow should exist unless the capability actually required orchestration or reuse.

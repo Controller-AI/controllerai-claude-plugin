@@ -67,7 +67,9 @@ MCP: use `node_add`; `cai node init` is the CLI alias of `cai node add`.
 
 Omit flags that do not apply. `--after` creates the ordinary main/error wire at creation. Use it when later props need upstream data. Initialization also accepts `--props`, but use it only for static, non-option values already present in the inspected component metadata. Never inline a `remoteOptions` value, a reload selector and its dependents, or a prop that has not materialized yet; initialize first and set those sequentially. Use `--enable-prop <name...>` only for optional props confirmed by component metadata.
 
-Capture the returned `nodeId`; do not rediscover it by name.
+Capture the returned `nodeId`; do not rediscover it by name. Inspect the complete create result before projecting fields. A missing projection is not proof that creation failed, so read the captured ID or exact flow inventory before any retry.
+
+When repairing an existing node, keep its node ID and configure it in place. Do not delete and recreate it merely to clear bad props, select a component, or refresh generated props; deletion discards wiring, conditions, and identity-based references. Replace it only when the requested component itself must change. Then capture the replacement ID, reconnect every dependent, and revalidate them.
 
 ### 4. Follow readiness, not guesses
 

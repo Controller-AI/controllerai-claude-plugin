@@ -64,6 +64,12 @@ Prefer a ready integration action when one existing operation completes the capa
 
 If the user's outcome does not reveal whether they want an agent or an automation that runs on an event, ask one short clarifying question. Otherwise proceed with the smallest suitable surface.
 
+## Lock targets before mutation
+
+Before the first write, resolve every existing target against the effective workflow. Prefer an explicit ID or an object already connected to the pinned workflow. When a list is account-wide, filter it by exact name or ID; never take the first, latest, or similarly named result. Read back the chosen object's ID, name, and owning workflow or flow. Keep those IDs for the task and never rediscover the target by name.
+
+Check `ok` and the complete `data` object from every mutation before projecting fields. A missing projected field is not proof that the mutation failed. Read back the returned ID or list the exact target before retrying. Never repeat a create until readback proves the first call created nothing.
+
 ## Platform docs
 
 The platform reference lives at https://docs.getcontroller.ai. Fetch https://docs.getcontroller.ai/llms.txt for the machine-readable index of every page; append `.md` to any page path for raw markdown (for example https://docs.getcontroller.ai/start/safety.md), or fetch /llms-full.txt for the whole corpus at once. Skills remain the procedural authority — consult the docs for what they do not carry: the execution and cost models, type-system and version-rail contracts, the full CLI and expression-operation references, and the workflow API. When a docs page and a skill disagree, prefer the skill and its live platform queries (`cai expr ops`, `cai integration actions`).
@@ -76,6 +82,8 @@ The platform reference lives at https://docs.getcontroller.ai. Fetch https://doc
 - Coding-agent subscriptions cover builder reasoning, not Controller AI hosted-agent runtime usage.
 - Provider actions can send messages, mutate or delete records, and incur provider charges. Decide the per-action confirmation policy before attaching one.
 - Never publish, share with the organization, replay a live trigger, or perform a consequential external test without clear user intent.
+- A missing business rule is a blocker, not permission to infer one from names or sample data. Ask the user and leave the affected state unchanged.
+- Stop when the requested state and its required evidence are reached. Do not add objects, publish, or keep probing beyond that boundary.
 - When a platform limitation blocks the outcome, STOP and report the partial result with the blocking error; never keep probing until the clock expires.
 
 At completion, report what was created, what is still draft or live, the evidence actually observed, and any connection or user decision still required.

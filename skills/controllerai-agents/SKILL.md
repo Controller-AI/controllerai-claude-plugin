@@ -5,26 +5,31 @@ description: Design, assemble, test, publish, and share user-facing Controller A
 
 # Controller AI agents
 
-An agent has one mutable draft and immutable published versions. Capabilities are ready integration actions, workflow tools, or both. Build on the draft, verify through a draft conversation, publish last. Editing the draft never updates the live agent by itself.
-
-Build the draft in this order: instructions, tools and descriptions, user-decided permissions, reference files, Test verification, publish, then optional Slack and organization sharing.
+An agent has one mutable draft and immutable published versions. Build instructions, tools, permissions, and files on the draft; verify in Test; publish last. Draft edits never update Live by themselves.
 
 The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task or call Controller AI REST routes directly.
 
-## 1. Choose the capability architecture
+## Rules that break tasks when skipped
 
-For each capability:
+- Attach one ready action directly instead of wrapping it; see Choose the capability architecture.
+- Choose confirmation before attaching a consequential tool; see Create and assemble the draft.
+- Use one conversation on an explicit rail for each verification task; see Verify the draft as an agent.
+- Resolve pending requests in that same conversation; see Verify the draft as an agent.
+- Enablement is runtime state, not publication; see Create and assemble the draft.
+- Publish authorized workflow dependencies, preflight, then publish the agent; see Publish in dependency order.
+- Draft-only means stop before publish; draft evidence never proves Live. See Publish in dependency order.
+
+## 1. Choose the capability architecture
 
 - Use `controllerai-integration-actions` when one existing app operation completes it.
 - Use a workflow tool for multiple steps, transformations, branching, looping, durable state, triggers, a custom typed contract, or reusable business logic.
-- Put conversational judgment, when-to-use rules, tone, and escalation in agent instructions.
-- Put stable source material in a knowledge file.
+- Put judgment, tool-selection rules, tone, and escalation in instructions; put stable sources in knowledge files.
 
 Do not create a one-node workflow merely to expose a ready action, or replace orchestration with several independent direct actions when ordering or data handling must be deterministic.
 
 ## 2. Build and verify capabilities
 
-For a ready action, follow `controllerai-integration-actions`: discover the exact integration/action, select a connection, decide confirmation policy, then attach it.
+For a ready action, follow `controllerai-integration-actions`: discover exact identities, select a connection, decide confirmation, then attach.
 
 For every workflow tool, load the relevant workflow skills and test the development state before attaching:
 
@@ -36,12 +41,11 @@ cai run flow <flowId> --inputs values.json --json
 
 MCP: there is no pin; pass `workflowId` to `flow_get` and `run_flow`, pass parsed `inputs`, and set `waitSeconds`.
 
-Capture the successful workflow execution ID. Inputs become tool parameters; outputs become its result.
-Before attaching, require a nonempty output contract and verify the completed run returns it; otherwise the agent receives an empty result.
+Capture the successful execution ID. Inputs become tool parameters and outputs its result. Require a nonempty output contract and verify the run returns it.
 
 ## 3. Create and assemble the draft
 
-Write short instructions covering role, tool-selection rules, expected inputs/results, safety boundaries, response style, and error behavior. Require: "If an action returns an error, tell the user what failed and what you were trying to do; do not retry more than once."
+Write short instructions for role, tool use, inputs/results, safety, response style, and errors. Require truthful failure reporting and at most one retry.
 
 Read [references/instructions-and-versioning.md](references/instructions-and-versioning.md) before publishing or explaining Test versus Live behavior.
 
@@ -75,9 +79,7 @@ cai agent tools <agentId> --json
 cai agent get <agentId> --json
 ```
 
-MCP: use `agent_knowledge_file_add` for knowledge or `agent_workspace_file_add` for shared/runtime, and pass file text inline as `content`. `agent_file_list` uses `environment: dev` or `environment: live` instead of `--live`.
-
-Adding with `--space shared` updates the live runtime file space immediately without publishing; an active agent sees it on the next turn, a disabled agent after enablement.
+MCP: use `agent_knowledge_file_add` or `agent_workspace_file_add` with inline `content`; `agent_file_list` uses `environment: dev|live`. Shared runtime files update live immediately.
 
 The default is no approval: attached actions and workflow tools run without a human approval step unless `requireConfirmation` is `true`, and omitting `--require-confirmation` has the same behavior. When attaching an action that sends, posts, spends, or deletes, choose `true` or explicitly tell the user that it will run unattended. Mention the confirmation choice in the report to the user; `cai agent update-tool` can change it later.
 
@@ -91,11 +93,9 @@ Keep the two modes straight:
 | Runtime files | Current live runtime files, overlaid by development/test runtime files at the same path | Current live runtime files only |
 | Access | Owner only | Owner, plus organization members when shared; non-owners never see the draft |
 
-Version pinning for workflow tools does not exist: live tools always track the workflow's latest release; publishing the workflow is what changes tool behavior. If the user asks to freeze a tool's version, say so plainly — even when framed as a condition — and still attach it (policy `latest`); never abandon the attachment over it.
+Version pinning for workflow tools does not exist. Live tools track the latest release. If asked to freeze one, explain this, attach with policy `latest`, and never abandon the attachment.
 
-Publishing the agent snapshots name, instructions, tool identities, descriptions, approval policies, and knowledge files; it moves the live pointer and restamps every existing live conversation to the new version. It does not snapshot the runtime model.
-
-Publishing is a hard cutover: mid-turn live conversations are interrupted (the person's in-flight answer never arrives), unexecuted approval requests expire, and each conversation reopens on its next message running the new version. Time publishes accordingly and tell the user.
+Publishing snapshots versioned fields, moves the live pointer, and restamps every existing live conversation. It does not snapshot the runtime model. This cutover interrupts in-flight answers and expires pending approvals; time it accordingly.
 
 Runtime lifecycle changes do not require publishing:
 
@@ -105,9 +105,7 @@ cai agent update <agentId> --enabled --json
 cai agent delete <agentId> --confirm --json
 ```
 
-MCP: draft edits use `agent_update`; runtime state uses `agent_set_enabled` with `enabled`; `agent_delete` has no `confirm` parameter.
-
-Disable pauses runtime immediately; enable resumes it. Delete is soft: it revokes live access, requests best-effort termination of active sessions and pending approvals, keeps history but makes it inaccessible, has no CLI restore, and does not guard dependent workflows.
+MCP: draft edits use `agent_update`; runtime uses `agent_set_enabled`; `agent_delete` has no `confirm`. Disable pauses runtime. Soft delete revokes access and requests session termination; there is no CLI restore.
 
 ## Runtime usage boundary
 
@@ -124,11 +122,16 @@ cai agent conversation history <conversationId> --json
 
 MCP: `agent_test` requires `rail: draft` or `rail: live` and takes `waitSeconds`.
 
-Test requests that should and should not select each tool. Verify exact arguments, truthful use of results, errors, and knowledge behavior.
+`agent test` always creates a conversation. Use it for a one-shot check. When a task may need follow-up or approval, create one conversation on the requested rail, capture its ID, and reuse it:
 
-Also offer the agent's app page so the user can try the draft hands-on before publishing (outputs include `appUrl` when the app origin is known); their impression outweighs your transcript reading.
+```bash
+cai agent conversation create <agentId> --draft --title "<test case>" --json
+cai agent conversation send <conversationId> --message "<request>" --wait --json
+```
 
-MCP: call `agent_present` for the finished agent and relay the returned card with its name, purpose, tools, and link.
+Do not resend the request or create a replacement after an approval pause. A required post-publish Live check is a separate rail task and gets one fresh Live conversation.
+
+Test positive and negative tool selection, exact arguments, results, errors, and knowledge. Offer the returned `appUrl`; on MCP, call `agent_present` and relay the returned card.
 
 - For a workflow tool, correlate a side-effectful call with its terminal workflow execution ID.
 - For a direct integration action, inspect persisted conversation action events/run result and the intended external effect. Direct actions do not create workflow execution IDs.
@@ -140,7 +143,7 @@ cai agent conversation approve <conversationId> --request <requestId> --json
 cai agent conversation deny <conversationId> --request <requestId> --message "<reason>" --json
 ```
 
-The server resolves the tool from the permission request; do not pass a human-readable tool name, and do not approve merely to make a test continue.
+The server resolves the tool from the request ID. Do not approve merely to continue. Resolve every pending request before publishing; approval or denial resumes this conversation, while publishing expires it.
 
 After `cai agent remove-tool`, test one request that must no longer use the removed capability and one retained capability.
 
@@ -158,6 +161,8 @@ MCP: there is no `use`; pass `workflowId` to `workflow_status` and `workflow_pub
 
 Publish a workflow only when its verified development state must go live and the user authorized it. A workflow publish already followed by a live agent changes that tool's live behavior immediately; do not republish the agent merely to pick it up.
 
+For a draft-only request, stop after Test evidence. Do not publish a workflow or agent merely because it is ready.
+
 Then publish the agent:
 
 ```bash
@@ -169,31 +174,41 @@ cai agent test <agentId> --live --message "<representative request>" --json
 
 MCP: `agent_test` requires `rail: draft` or `rail: live` and takes `waitSeconds`.
 
-`publish-preflight` is the arbiter of structural readiness, with blocker parity with the publish gate (missing/unpublished/unrunnable tool flows, broken connections). When it lists blockers, report them and stop. When `hasBlockers` is false and the user asked for a release, publish — except an error you actually watched happen (a failed Test turn, an errored tool call), which blocks even a green preflight; the shape or style of successful output never does.
+`publish-preflight` is the arbiter of structural readiness. Report blockers and stop. With none and an authorized release, publish, except an error you actually watched happen; that blocks even a green preflight.
 
 Email verification is not a publishing prerequisite. An unclaimed agent-created account may publish; email claiming only raises its monthly usage cap and enables account recovery.
 
-Versioned agent state follows one loop: edit the draft, read back, verify in Test, publish, verify Live. Name, instruction, tool identity/description, approval-policy, and knowledge-file changes reach the published version only on the next agent publish.
-
-Published agent versions have no rollback — never promise to "revert" one. Recover forward: restore the wanted DRAFT and publish anew — for agents, reapply an earlier snapshot from `cai agent versions`; for workflow tools, `cai workflow history` + `cai workflow restore --state <stateId>` restores the dev DEFINITION (not record data), then republish.
-
-Follow the live-bound exceptions in [references/instructions-and-versioning.md](references/instructions-and-versioning.md): workflow releases, direct-action grants, and runtime files can change Live without an agent publish. Verify them with a fresh Live conversation; after detaching an action, publish to remove the unavailable tool from the published list.
+Use one loop: edit draft, read back, verify Test, publish, verify Live. Published versions have no rollback. Recover forward from `agent versions`; restore workflow definitions with history/restore, then republish. Workflow releases, action grants, and runtime files are live-bound; see [references/instructions-and-versioning.md](references/instructions-and-versioning.md). After detaching an action, publish to remove it from the published list.
 
 Draft evidence does not prove the live agent. Test is owner-only; shared users always run the latest published agent version and never see draft instructions, tools, or knowledge.
 
 ## 6. Offer Slack and organization sharing
 
-After a successful publish, offer the next steps unprompted:
-
-- **Slack**: talking to the agent in Slack needs the Slack ↔ Controller AI connection plus per-agent Slack configuration (slug, channel), both set up in the product — point the user there and offer a walkthrough.
-- **Sharing**: agents remain private unless the user explicitly asks for organization access:
+After publish, offer product setup for Slack. Agents remain private unless the user requests organization access:
 
 ```bash
 cai agent visibility <agentId> --value organization --json
 ```
 
-Organization members use the published version. Direct actions run through the owner's connected external account; usage comes from the organization's pool. Rebinding or revoking that live grant immediately affects published agents; return to private visibility to revoke access.
+Members use the published version. Direct actions use the owner's external account and organization usage pool. Grant changes affect Live immediately; private visibility revokes access.
 
-## Final report
+## Before you finish
 
-State the agent ID/version, tools and confirmation policies, workflow execution IDs and direct-action conversation evidence, draft/live status, live connection bindings, organization access, and anything unverified.
+```bash
+cai agent tools <agentId> --json
+cai agent conversation list <agentId> --mode dev --json
+cai data query --type custom.<type> --env dev --json
+cai agent conversation history <conversationId> --json
+cai agent publish-preflight <agentId> --json
+cai agent versions <agentId> --json
+cai agent test <agentId> --live --message "<representative request>" --json
+```
+
+Run the last three commands only for an authorized release. For Live verification, use `--mode live` and `--env live` in the same pair.
+
+- Conversation list must show the captured ID on the requested rail, without retry-created duplicates.
+- History must show the intended tool arguments, terminal result, and no unresolved permission request.
+- For stateful behavior, the same-rail data query must show the expected record; an assistant reply is not proof.
+- A release requires clean preflight, agent version read-back, and one fresh Live conversation. Draft-only work must remain unpublished.
+
+Report the agent ID/version, tools and confirmation policies, execution or direct-action evidence, rail state, connections, access, and anything unverified.

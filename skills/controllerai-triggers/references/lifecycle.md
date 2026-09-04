@@ -23,7 +23,7 @@ Skipping capture/sample selection commonly leaves downstream output untyped. Ski
 
 | ID | Used by |
 | --- | --- |
-| Canvas `triggerId` | `trigger get`, `rename`, `set-enabled`, `delete` |
+| Canvas `triggerId` | `trigger get`, `rename`, `set-enabled`, `delete`, `test-events` |
 | Numeric `backendTriggerId` | `trigger events`, `replay` |
 | `triggerNodeId` | `trigger select-event` |
 | Captured `eventId` | `trigger event`, `select-event`, `replay --event` |
@@ -43,6 +43,21 @@ Use `--target live --confirm-live` only for an intentional post-publish live ver
 `cai trigger set-enabled <triggerId> --enable|--disable` sets the requested state idempotently. Pass exactly one state flag.
 
 MCP: call `trigger_set_enabled` with `enabled: true` or `enabled: false`.
+
+## Lifecycle flag families
+
+```bash
+cai trigger set-enabled <triggerId> --enable|--disable --json
+cai trigger test-events <triggerId> --allow [--acknowledge-dual-run] --json
+cai trigger test-events <triggerId> --disallow --json
+cai trigger replay --trigger <backendTriggerId> --target dev --json
+cai trigger replay --trigger <backendTriggerId> --target live --confirm-live --json
+cai workflow publish --acknowledge-dual-dispatch --json
+```
+
+Use enable/disable for the trigger definition, allow/disallow for ambient development capture, and target for replay rail. `--acknowledge-dual-run` applies only while arming. `--acknowledge-dual-dispatch` applies only when publishing an armed trigger. `--confirm-live` applies only to one Live replay. These acknowledgements are not interchangeable.
+
+The allow flag is sticky even when the trigger is disabled. Always disallow after capture or an abandoned setup so later re-enablement cannot silently rearm development dispatch.
 
 ## Debugging a missing run
 

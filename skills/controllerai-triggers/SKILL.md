@@ -9,6 +9,15 @@ The `cai ...` examples are canonical grammar. Use the transport selected in `con
 
 A trigger targets exactly one flow. Its source may capture events before publish, but ordinary event execution uses the live workflow. Creating the source is therefore separate from mapping, development testing, publishing, and live replay.
 
+## Rules that break tasks when skipped
+
+- Preserve trigger ID and source during repair; see Create and map.
+- Delete a retired start; disable a reversible pause. See Remove or disable an automatic start.
+- Lifecycle uses `--enable|--disable`; test events use `--allow|--disallow`. See Remove or disable an automatic start and Finish trigger setup.
+- Disarm capture when setup ends; see Finish trigger setup.
+- Lifecycle edits are development-only; publish only for Live. See Verify development, then publish.
+- Replay with `--target dev`; Live also requires `--confirm-live`. See Verify development, then publish.
+
 ## Require a real source decision
 
 Determine how the trigger choice was established:
@@ -91,9 +100,7 @@ or
 {"cron":{"intervalSeconds":900}}
 ```
 
-Do not discard timezone by passing a bare cron string. The timezone is the user's to
-choose, not yours to assume: when they say "at 9am" without one, ask — a schedule in the
-wrong timezone runs at the wrong time every single day, and nothing ever errors.
+Do not pass a bare cron string or assume a timezone. Ask when the user says "at 9am" without one.
 
 ## Create and map
 
@@ -109,7 +116,9 @@ cai trigger create \
   --json
 ```
 
-Capture all returned IDs. `triggerId` is the canvas ID used for get/rename/set-enabled/delete. `backendTriggerId` is numeric and used for captured events and replay. They are not interchangeable.
+Capture all returned IDs. `triggerId` is the canvas ID used for get/rename/set-enabled/delete/test-events. `backendTriggerId` is numeric and used for captured events and replay. They are not interchangeable.
+
+When repairing an existing trigger, preserve its canvas ID and source. Repair its mapping in place; do not delete and recreate it merely to clear readiness. Replacement changes captured IDs and may change a webhook URL. Replace only when the requested source itself must change, then recapture every returned ID.
 
 Read a single trigger back with `cai trigger get <triggerId> --json` — the full record: node, event, connection, props, lifecycle. Read-back is always `get`; the CLI has no `describe` read command anywhere (`cai workflow set-description` is a setter).
 
@@ -117,11 +126,11 @@ Follow returned `nextSteps` in order. Trigger payload does not automatically pop
 
 ## Remove or disable an automatic start
 
-`cai trigger delete <triggerId>` removes the automatic start from the development canvas; use it when the start should no longer exist. `cai trigger set-enabled <triggerId> --enable|--disable` changes the enabled state reversibly and idempotently; pass exactly one state flag.
+`cai trigger delete <triggerId>` removes the automatic start from the development canvas; use it when the start should no longer exist. Never delete its owning flow merely to remove the trigger. `cai trigger set-enabled <triggerId> --enable|--disable` changes the enabled state reversibly and idempotently; pass exactly one state flag.
 
 MCP: call `trigger_set_enabled` with `enabled: true` or `enabled: false`.
 
-Both are development edits. Publish after either so production follows; until then, the previous live trigger can still start the published workflow.
+Both are development edits. Publish only for an authorized Live change; otherwise the prior Live trigger remains active.
 
 ## Establish a typed sample
 
@@ -145,9 +154,13 @@ cai trigger test-events --id <triggerId> --disallow
 
 MCP: call `trigger_test_events_set` with `allowed: false`, or `allowed: true` to arm it.
 
-The armed state is sticky: nothing disarms it for you, and dev dispatch and live dispatch are independent gates. A trigger that is armed while the workflow is also live runs ONE real event TWICE — both executions real, both billed. The starkest case is a schedule trigger: armed + enabled + published, the cron fires BOTH dev and live at every interval, forever, with no external event involved — until someone edits and republishes.
+Do not mix the flag families. `set-enabled` takes `--enable` or `--disable`; `test-events` takes `--allow` or `--disallow`; replay takes `--target dev` or `--target live`, with `--confirm-live` for Live.
 
-Keeping a trigger armed alongside live on purpose (side-by-side comparison on real events) is legitimate but uncommon; it is a user decision, never a default.
+The acknowledgements are distinct: `--acknowledge-dual-run` applies only while arming, `--acknowledge-dual-dispatch` only while publishing an armed trigger, and `--confirm-live` only to one Live replay.
+
+Arming is sticky and independent from enablement. Armed plus live dispatch runs each real event twice; a schedule does so every interval. Disabling does not clear the allow flag, so always disallow after capture.
+
+Keeping both rails armed is an uncommon user decision, never a default.
 
 ## Verify development, then publish
 
@@ -159,6 +172,8 @@ cai exec tree <workflowExecutionId> --json
 ```
 
 A development replay never dispatches live, but nodes still call real providers and can create side effects or spend usage. Publish only after mappings and development behavior pass.
+
+A draft-only request stops after development proof. Do not publish merely because the trigger is ready.
 
 Before publishing, audit EVERY trigger in the workflow — not just the one you worked on. Users forget triggers left enabled or armed in other flows. Read each row's lifecycle fields from `cai trigger list --json` (`devCanvasEnabled`, `deployment.liveCanvasEnabled`, `deployment.inLiveVersion`, `deployment.devDispatchArmed`, `deployment.dualDispatchLive`) and confirm with the user which triggers should be starting this workflow live:
 
@@ -190,3 +205,18 @@ cai exec tree <workflowExecutionId> --json
 It executes the published workflow, calls live third-party actions, and spends usage. Obtain appropriate user intent before replaying a side-effectful event.
 
 Read [references/lifecycle.md](references/lifecycle.md) for trigger state and debugging.
+
+## Before you finish
+
+```bash
+cai trigger get <triggerId> --json
+cai trigger list --json
+cai workflow status --json
+# Only after an authorized create or mapping test:
+cai exec tree <workflowExecutionId> --json
+```
+
+- Read-back must retain the intended trigger, source, target flow, connection, props, and mapping.
+- `devCanvasEnabled`, `liveCanvasEnabled`, and `inLiveVersion` must match the requested rail state.
+- `devDispatchArmed` must be false unless the user explicitly chose dual dispatch; report `dualDispatchLive`.
+- For authorized create/mapping work, the development test must produce the expected tree. Never replay for delete/disable-only work. Live replay needs separate authorization.

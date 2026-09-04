@@ -10,6 +10,16 @@ The live compiler and `cai expr context`/`cai expr ops` are authoritative. These
 
 Use the exact bindings and fields returned for the destination node.
 
+## Text prefix
+
+When `.startsWith()` is unavailable, test a prefix with:
+
+```js
+flow.subject.isNotEmpty() ? flow.subject.split("urgent")[0] === "" : false
+```
+
+The typed conditional keeps empty text from matching. Replace the binding and prefix literal with exact values from context. Do not split on whitespace unless the requirement is first-word equality. Test punctuation immediately after the prefix, such as `urgent-alpha`, plus a near miss.
+
 ## HTTP JSON body
 
 An HTTP node's JSON/body prop is stored as JSON text. The expression language does not support object literals or `JSON.stringify`. Build the document as a template and insert complete JSON tokens:
