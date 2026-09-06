@@ -168,9 +168,3 @@ This registry-derived map covers 162 CLI commands and 149 typed MCP tools. CLI e
 | `cai workflow status` | `workflow_status` | `--workflow` → `workflowId` | — |
 | `cai workflow validate` | `workflow_validate` | `--workflow` → `workflowId` | — |
 | `cai workflow versions` | `workflow_version_list` | `<workflowId>` / `--workflow` → `workflowId` | — |
-
-## Conversation files and compact history
-
-`agent_conversation_file_add` accepts `conversationId`, `name`, `type`, and inline text `content`. `agent_conversation_file_list` returns both chat attachments and context files, with `cursor`, `limit`, and `search`. Read UTF-8 content using `agent_conversation_file_read`; retrieve original bytes through `agent_conversation_file_download`, which returns a temporary downloadable URL. Both take the conversation and file IDs.
-
-Conversation history defaults to a compact, paginated message view. Use `limit` and `before`; `raw: true` is for SDK diagnostics only. On the CLI, the corresponding commands are `agent conversation add-file`, `files`, `read-file`, and `download-file --out <path>`. CLI upload uses `--file`, while MCP upload uses inline `content`.

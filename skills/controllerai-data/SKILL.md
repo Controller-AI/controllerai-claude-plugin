@@ -1,59 +1,184 @@
 ---
 name: controllerai-data
-description: Build durable application state in Controller AI workflow data stores: schemas, record identity, CRUD flows, search, partial updates, relationships, imports and development/live data. Use for CRM backends, trackers, data APIs and persistence.
+description: Define Controller AI custom data types and safely read, write, import, copy, and debug workflow records across development and live stores. Use when a workflow needs durable state, custom structured types, collections, record queries, CSV import, workflowData expressions, or data migration between dev and live.
 ---
 
-# Workflow data as an application backend
+# Controller AI data
 
-Each workflow can own custom schemas and durable collections. Its flows share those collections, so an agent can use a set of flows as a CRM or application API. Creating a schema makes the collection available; creating a flow output only returns a value and does not store it.
+The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
 
-`custom.contact` describes a shape. `dataRecord.custom.contact` is a stored record of that shape, including `id`, `createdAt` and `updatedAt`. Lists of fetched records preserve identity. Use real fetched records as inputs to native Get/Update/Delete actions; an object that merely looks like a contact does not prove record identity.
+Controller AI has two separate concerns:
 
-## What is available
+- A `custom.*` schema defines fields and makes a collection available.
+- Development and live record stores hold separate rows. Publishing graph/configuration does not copy records.
 
-- Native Create, Get, Update, Update Multiple and Delete data-record actions.
-- `workflowData("custom.contact")` expressions for query/filter/sort/count and selecting records.
-- Typed record relationships, separate dev/live records, schema changes, CSV import validation/commit, and explicit copy-to-live.
-- MCP data tools for inspecting, creating, querying, patching and deleting records during setup or debugging. Native workflow nodes provide the reusable capability an agent calls later.
+## Rules that break tasks when skipped
 
-Discover the current `registry_data` action keys and schemas. Do not infer unsupported database guarantees: unique business keys, permissions, relationship deletion policy and concurrent business rules need deliberate application logic or verified platform support.
+- Persisting data requires both a schema and a create-record node; see A type vs a stored record.
+- `schema update --field` replaces the full field list; see Define a schema deliberately.
+- Relabel a stable key instead of recreating it; see How schema changes affect stored records.
+- Query results and writes use different field keys; see Respect field-key asymmetry.
+- Read and write the requested dev or live store; see Work on the correct rail.
+- Remove only scratch schemas created for abandoned attempts; see Before you finish.
 
-## Recipe: CRM flows for an agent
+## A type vs a stored record
 
-1. Create schemas with stable field IDs: companies, contacts, deals and activities. Use fields for business data, record references for relationships where appropriate, and a clear status/archive policy.
-2. Define create/get/update/delete/search flow contracts per entity. Include useful descriptions and explicit results for invalid inputs, missing records and duplicate business keys. Do not make an empty record look like success.
-3. Create validates input and referenced records before writing. Get selects by record ID. Update fetches the record and patches only requested fields. Delete applies the chosen relationship policy. Search returns matching records and count/page information.
-4. Add useful composite reads such as “contact plus company, deals and activity history.” Prefer explicit projections over large unbounded record graphs.
-5. Test create → get → search → update → get → delete → missing get. Also test duplicate keys, invalid references, omitted filters, empty matches, zero/false values, list membership, clearing a field and page boundaries.
-6. Attach each tested flow as an agent tool when a conversational CRM agent is requested.
+When a request says store, save, log, or record with no external destination, create the schema and configure a create-record node. A flow output alone is not persistence.
 
-## Search expressions
+`custom.customer` and `dataRecord.custom.customer` are different things, and the difference carries through everything:
 
-Use current `expr_context` bindings. Typical sources and operations:
+- `custom.customer` is the TYPE — the shape, like a TypeScript interface. A value of this type is just data in that shape.
+- `dataRecord.custom.customer` is an ACTUAL STORED RECORD of that shape — the same fields plus record identity (`id`, `createdAt`, `updatedAt`) proving it lives in the collection.
 
-```javascript
-workflowData("custom.contact").filter(r => r.id === flow.recordId).first()
-workflowData("custom.contact").filter(r => r.owner === flow.owner, { ignoreEmptyConstraints: true })
-workflowData("custom.contact").filter(r => r.tags.includes(flow.tag))
-workflowData("custom.contact").skip(flow.offset).take(flow.limit)
+In the product UI this appears as the "data record" checkbox when selecting a type for a flow input or run-subflow-on-list: unchecked means "data shaped like a customer", checked means "a real stored customer record". Users find this checkbox confusing — be ready to explain it in these terms.
+
+Consequences:
+
+- Only real records satisfy a `dataRecord.*` input. An expression that CONSTRUCTS record-shaped objects (e.g. a `.map()` that builds new objects) produces `custom.*`-shaped values with no identity — pass fetched records through instead.
+- Record metadata (`id`, `createdAt`) exists only on `dataRecord.*` values; on plain `custom.*` values those paths resolve empty.
+
+## Data nodes: update semantics
+
+- "Update multiple data records" takes an expression typed `list.dataRecord.custom.<type>` — real stored records passed through from a query or `workflowData(...)`. The batch is ONE transaction: if any resolved record is stale (deleted since fetched) or foreign to the collection, the node errors and NOTHING updates. A failed run therefore means zero changes — fix and rerun safely.
+- On the single-record "Update data" node, every ENABLED field is written. Enable only the fields you intend to change; disabled fields keep their stored values.
+
+## Define a schema deliberately
+
+Inspect existing types first:
+
+```bash
+cai schema list --json
+cai schema get custom.<name> --json
 ```
 
-`ignoreEmptyConstraints` skips absent values, empty text and empty lists. `false` and `0` remain actual filter values. Without the option, an empty value remains a real comparison. List `.includes(value)` takes an **element**, not a list of elements. A text `.includes` is case-sensitive; for case-insensitive search, store normalized search text and normalize the query before comparing. Test the exact filter against representative rows.
+Create a type with stable field IDs:
 
-Use `.take(n)` for a count and `.skip(n)` for an offset. Legacy `.itemsFrom(n)`/`.itemsUntil(n)` use one-based boundaries: `.itemsUntil(51)` returns the first 50. Keep page counts and limits explicit; do not label a truncated list as a complete export.
+```bash
+cai schema create custom.customer \
+  --display "Customer" \
+  --field email:text:"Email" \
+  --field score:number:"Score" \
+  --json
+```
 
-## Partial updates
+Creating the schema creates/synchronizes its collection. `cai data collection create` is only an alias for schema creation.
 
-Single Update writes every enabled field by default. Enable only intended fields for a fixed patch. For a dynamic API patch, enable the optional `$fieldMask` prop, bind it to a `list.text` of schema field IDs, and enable/configure the candidate fields. Only selected fields are written in one update. An empty mask selects none; an unknown or disabled selected field is an error. Omit the mask to keep the existing enabled-field behavior.
+MCP: `cai data collection create` is merged into `schema_type_create`.
 
-This supports list/date/scalar updates without one node per field. Selected `false`, `0`, empty text and empty lists are real updates; omitted mask entries preserve the stored values. Distinguish clearing from omission in the flow contract. Update Multiple applies a patch transactionally to the selected real records; verify its failure behavior for stale or foreign IDs.
+`schema update --field` replaces the complete field list; it does not append — this is deliberate, so a subset CAN intentionally replace the whole schema. Read the current schema, preserve intended fields, and disclose any removals. The transport response warns about every field being dropped and echoes back the COMPLETE stored shape after the write — always read that echo and confirm it matches intent. Deleting a schema hides its collection and records and breaks dependent expressions — tell the user, and know it is recoverable (see below).
 
-## Keys, schemas and environments
+## How schema changes affect stored records
 
-Inspect `data_field_list` for write keys. Data-tool writes use stable field IDs; query results can use display labels. Construct writes from the mapping instead of feeding a returned display-keyed object back into a write. Renaming a label is different from changing the stable schema/field key.
+Schema changes never hard-delete data. There is no delete path for records in schema sync — everything is deactivation and hiding:
 
-Schema field updates replace the full declared field list. Read the existing schema and include every field intended to remain. Removing a schema or field hides its stored data; it does not snapshot or erase the underlying records. Restoring workflow history restores the definition only.
+- Delete a type → its collection goes INACTIVE on the next saved state; every record row survives. Re-add the same `custom.*` key and the same collection reactivates with all records intact.
+- Delete a field → its values stay inside each record, unaddressable. Re-add the SAME field id and the old values reappear.
+- Add a field → purely additive; existing records read the new field as null.
+- Change a field's type → values are never converted or erased; incompatible values read as null and return if the type is changed back. The schema hash changes, which blocks copy-to-live until dev and live match again.
+- Publish applies the same deactivate/reactivate logic to live. Live records are hidden, never deleted.
+- Restoring an older workflow state rolls back the DEFINITION (graph and schemas), never the data. The record store is not versioned and only moves forward: a deleted type reactivates with whatever the store holds NOW — records created, edited, or soft-deleted after the restored state stay exactly as they are. Restore is not a data snapshot.
 
-Development is the default test store; MCP writes require explicit `env`. Publishing the workflow does not copy records to Live. Use explicit validated copy/import operations when data promotion is actually intended. Verify state in the same environment as the flow execution.
+The truly destructive operations are record-level only: `data delete`, `data delete-many`, and overwriting edits. Those have no undo — treat them with explicit user intent; everything schema-shaped is safely reversible.
 
-Detailed schema, import and data commands: [command reference](references/command-reference.md). Environment and reference semantics: [data rails](references/data-rails.md).
+Relabel a type without changing its stable key:
+
+```bash
+cai schema update custom.customer --display "Customers" --json
+```
+
+Changing `custom.customer` itself is a key migration, not a relabel. It creates a new type and deactivates the old collection, stranding its records under the old key. Migrate records explicitly by export/import or restore the old key.
+
+## Respect field-key asymmetry
+
+```bash
+cai data fields --type custom.customer --json
+```
+
+- `data create` and `data update` take field IDs.
+- Query/get results are keyed by field display names.
+- CSV columns are also matched by display names.
+
+Never feed a queried record directly into a write. Build a new fields object keyed by the `writeKey` mapping and omit reserved `id`, `createdAt`, and `updatedAt`.
+
+Fields may be typed `date`. Their values are strict ISO-8601 strings (`"2026-06-05"` or `"2026-06-05T12:30:00Z"`) on both write and read; anything else is rejected. Reserved `createdAt`/`updatedAt` are currently `text` — use `.toDate()` before date operations on them.
+
+## Work on the correct rail
+
+Development is the default:
+
+```bash
+cai data collections --env dev --json
+cai data query --type custom.customer --env dev --json
+cai data create --type custom.customer --fields '{"email":"a@example.com","score":5}' --env dev --json
+```
+
+MCP: every data write requires explicit `env`; reads default to `dev` when `env` is omitted.
+
+Use `--env live` only when the user intends to inspect or mutate production state. Before a live write, say that published/triggered runs read this store.
+
+`data query --query` is plain-text search over serialized records and metadata, not a field predicate. Perform exact field filtering inside workflow expressions or inspect results explicitly.
+
+## Delete records explicitly
+
+Record deletion is available only through the control surface; no workflow data node exposes it. Delete one known record or an explicit set of IDs:
+
+```bash
+cai data delete <recordId> --type custom.customer --env dev --json
+cai data delete-many --type custom.customer --records <id1,id2> --env dev --json
+```
+
+Delete every record in a collection only with explicit user intent; `--all` also requires `--yes`:
+
+```bash
+cai data delete-many --type custom.customer --all --yes --env dev --json
+```
+
+MCP: `data_record_delete_many` requires explicit `env: dev|live` and exactly one of `recordIds` or `all: true`; it has no `yes` parameter.
+
+The CLI default rail is development. Targeted and `--all --yes` bulk deletions also support `--env live`; a live deletion immediately changes the data read by the published workflow, so use it only with explicit production intent and query that rail afterward.
+
+## Import and promote
+
+Validate CSV before writing:
+
+```bash
+cai data import --type custom.customer --file customers.csv --mode dryRun --env dev --json
+cai data import --type custom.customer --file customers.csv --mode commit --env dev --json
+```
+
+MCP: pass CSV text inline as `content` with explicit `env: dev|live` to `data_record_import_validate`, then use `data_record_import_commit` to write the validated content.
+
+Both CLI modes support `--env live`: dry-run remains non-writing, while a live commit appends rows immediately visible to the published workflow. Verify result counts and query the imported rows on the same rail.
+
+To seed live from development:
+
+```bash
+cai workflow publish --json
+cai data copy-to-live --type custom.customer --json
+cai data collections --env live --json
+```
+
+MCP: call `data_copy_to_live` with the explicit acknowledgement `env: live`.
+
+The live schema must exist through a publish before copying. Treat copy-to-live as a production mutation and report counts/results.
+
+## Workflow expressions
+
+`workflowData("custom.customer")` requires an active collection on the executing rail. Read `controllerai-expressions` for filtering. Test stateful behavior against development, then independently verify required live seed data.
+
+Read [references/data-rails.md](references/data-rails.md) before schema rewrites, deletion, bulk deletion, import, or copy-to-live.
+
+## Before you finish
+
+```bash
+cai schema get custom.<type> --json
+cai data collections --env <dev|live> --json
+cai data query --type custom.<type> --env <dev|live> --json
+cai workflow outline --json
+cai workflow validate --json
+```
+
+- Schema read-back must show the intended stable key, display, complete field list, and field types.
+- The same-rail query must prove the expected persisted records; node output alone is insufficient.
+- Compare schema and workflow inventory with the request. Remove only schemas created during abandoned attempts, never pre-existing user objects.
+- For a live request, verify the live collection after publish or copy and report the affected record count.
