@@ -90,7 +90,7 @@ workflowData("custom.lead").filter(
 )
 ```
 
-Test both the supplied and omitted cases. Empty text may behave as a real value rather than a missing value; do not assume the opt-in drops it.
+Test both supplied and omitted cases. With this option, null, omitted values, empty text and empty lists are skipped; zero and false remain real constraints. Optional OR filters preserve input order and duplicates, and return all rows when every branch is skipped. Use `.take(count)` and `.skip(offset)` for pagination.
 
 ## Loop item
 
