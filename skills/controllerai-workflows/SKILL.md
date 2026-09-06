@@ -35,7 +35,7 @@ cai workflow create --name "<clear outcome-oriented name>" --json
 
 Read `selected`, `effectiveWorkflowId`, and `pinSource`; creation may not win the pin. If unselected, remove a command flag, use `cai use <id>` for a stored pin, or clear inherited `CAI_WORKFLOW`, as `pinSource` directs, then re-check. `cai config reset` clears only stored pins. `cai doctor` verifies the effective pin and development head. On MCP, capture and pass the new `workflowId`. Create with the final name.
 
-A new workflow already ships with one empty flow. Rename that flow and build in it — do not add a second flow for the first piece of work; only add flows for genuinely separate canvases. A stray empty "Flow 1" left behind is clutter the user has to clean up.
+After `cai workflow create`, check `flowCount` in the output. If it is 0 (or the field is missing, run `cai flow list --json`), create the first flow with `cai flow create --name "<name>" --json`. If one empty flow already exists, rename it and build in it. Never add a second flow for the first piece of work; add flows only for genuinely separate canvases.
 
 Use IDs returned by the selected transport. For account-wide lists, filter by exact ID or name and owning workflow; never choose the first or latest similar result. Read the selected object's ID, name, and owner once, reuse those IDs, and never rediscover the target by name. A missing projected create field is not failure: inspect the complete result and exact inventory before retrying. Never invent identifiers.
 
