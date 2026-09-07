@@ -1,71 +1,59 @@
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 # Trigger lifecycle
 
 ## State sequence
 
 ```text
-source decision
-  -> exact node/event discovery
+source decision (basis)
+  -> exact node and event
   -> connection
-  -> dynamic prop resolution
-  -> create source + canvas
-  -> map payload into target flow
-  -> capture representative event
-  -> select typed sample
-  -> test target flow on development
-  -> replay captured event against development
-  -> publish workflow
+  -> prop and option resolution (latest dynamicPropsId)
+  -> create source and canvas trigger (triggerId, backendTriggerId, triggerNodeId, runSubflowNodeId)
+  -> declare the flow inputs
+  -> capture a representative event, select it
+  -> bind one mapping prop per input on the run-subflow node
+  -> run the target flow on development
+  -> replay the captured event on development
+  -> audit every trigger, then authorized publish
   -> optional live replay
 ```
 
-Skipping capture/sample selection commonly leaves downstream output untyped. Skipping mapping commonly produces a green trigger execution with empty flow inputs.
+Skipping capture or selection leaves the trigger output untyped. Skipping the mapping produces a green trigger execution with empty flow inputs. Leaving ambient dispatch allowed can produce double runs after publish.
 
 ## IDs
 
 | ID | Used by |
 | --- | --- |
-| Canvas `triggerId` | `trigger get`, `rename`, `set-enabled`, `delete`, `test-events` |
-| Numeric `backendTriggerId` | `trigger events`, `replay` |
-| `triggerNodeId` | `trigger select-event` |
-| Captured `eventId` | `trigger event`, `select-event`, `replay --event` |
+| Canvas `triggerId` | get, rename, set-enabled, delete, test-events |
+| Numeric `backendTriggerId` | captured events, replay (`--trigger`) |
+| `triggerNodeId` | select-event |
+| `runSubflowNodeId` | the mapping props, one per flow input |
+| Captured `eventId` | event read, select-event, replay |
 
-Always copy these from the transport output.
+Copy them from the responses. A replaced trigger has new IDs and possibly a new webhook URL.
 
-Development replay is the normal pre-publish check:
+## Switches and acknowledgements
 
-```bash
-cai trigger replay --trigger <backendTriggerId> --event <eventId> --target dev --json
-```
+| Switch | Flags | Meaning |
+| --- | --- | --- |
+| Definition state | `set-enabled --enable` / `--disable` | Whether the trigger starts its flow; development edit until published |
+| Ambient development dispatch | `test-events --allow --acknowledge-dual-run` / `--disallow` | Real events also execute the development canvas; sticky permission bit, survives disable |
+| Replay rail | `replay --target dev` / `--target live --confirm-live` | Which version one captured event executes |
+| Publish while armed | `workflow publish --acknowledge-dual-dispatch` | User's informed acceptance of double runs and double billing |
 
-Use `--target live --confirm-live` only for an intentional post-publish live verification.
+Each acknowledgement belongs to exactly one operation. Arming, publishing armed and live replay are three separate user decisions.
 
-## Enable/disable
+## Lifecycle fields
 
-`cai trigger set-enabled <triggerId> --enable|--disable` sets the requested state idempotently. Pass exactly one state flag.
+The list and get reads report `devCanvasEnabled` at the top level and, under `deployment`, `liveCanvasEnabled` (null when no live canvas exists: never published, or this trigger was added after the last publish), `inLiveVersion`, `devDispatchArmed` (enabled and allowed) and `dualDispatchLive`; get adds captured event counts and issues. The audit summarizes coverage and double-run risk before a publish and names the disarm step for each armed trigger.
 
-MCP: call `trigger_set_enabled` with `enabled: true` or `enabled: false`.
+## Missing-run diagnosis
 
-## Lifecycle flag families
+1. The trigger list: enabled, correct flow, recoverable backend ID?
+2. The workflow status: published, and is the live version active?
+3. The captured events for the backend trigger ID: did ingestion capture the event?
+4. The event read: does the payload match the selected sample?
+5. The execution list: did an execution start?
+6. The execution tree: where did it stop?
 
-```bash
-cai trigger set-enabled <triggerId> --enable|--disable --json
-cai trigger test-events <triggerId> --allow [--acknowledge-dual-run] --json
-cai trigger test-events <triggerId> --disallow --json
-cai trigger replay --trigger <backendTriggerId> --target dev --json
-cai trigger replay --trigger <backendTriggerId> --target live --confirm-live --json
-cai workflow publish --acknowledge-dual-dispatch --json
-```
-
-Use enable/disable for the trigger definition, allow/disallow for ambient development capture, and target for replay rail. `--acknowledge-dual-run` applies only while arming. `--acknowledge-dual-dispatch` applies only when publishing an armed trigger. `--confirm-live` applies only to one Live replay. These acknowledgements are not interchangeable.
-
-The allow flag is sticky even when the trigger is disabled. Always disallow after capture or an abandoned setup so later re-enablement cannot silently rearm development dispatch.
-
-## Debugging a missing run
-
-1. `cai trigger list --json`: enabled, correct flow, recoverable backend ID.
-2. `cai workflow status --json`: published/active live state.
-3. `cai trigger events --trigger <backendId>`: did ingestion capture the event?
-4. `cai trigger event <eventId>`: does payload match the selected sample?
-5. `cai exec list --json`: did execution start?
-6. `cai exec tree <executionId> --json`: where did it stop?
-
-No captured event means source/delivery/configuration. Captured event with no execution means enable/live/ingestion routing. An execution with empty inputs means mapping.
+No captured event points to the source, delivery or configuration. A captured event with no execution points to enablement, publish state or ingestion routing. An execution with empty inputs points to the mapping. Development works but live does not: compare the enabled state and the published configuration, and remember that live runs read the live data store.

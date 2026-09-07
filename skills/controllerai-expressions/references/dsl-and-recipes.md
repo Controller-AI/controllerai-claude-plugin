@@ -1,6 +1,7 @@
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 # Expression DSL and recipes
 
-The live compiler and `cai expr context`/`cai expr ops` are authoritative. These examples show structure, not names to copy blindly.
+The live compiler, `cai expr context` and `cai expr ops` are authoritative. These examples show structure; take every binding, field and operation name from the context.
 
 ## Text template
 
@@ -8,36 +9,25 @@ The live compiler and `cai expr context`/`cai expr ops` are authoritative. These
 `Hello ${flow.firstName.trim()}, order ${inputs.order.id} is ready`
 ```
 
-Use the exact bindings and fields returned for the destination node.
-
 ## Text prefix
 
-When `.startsWith()` is unavailable, test a prefix with:
+When `.startsWith()` is not advertised, test a prefix with a guarded split:
 
 ```js
 flow.subject.isNotEmpty() ? flow.subject.split("urgent")[0] === "" : false
 ```
 
-The typed conditional keeps empty text from matching. Replace the binding and prefix literal with exact values from context. Do not split on whitespace unless the requirement is first-word equality. Test punctuation immediately after the prefix, such as `urgent-alpha`, plus a near miss.
+The guard keeps empty text from matching. Prefix matching is not first-word matching: do not split on whitespace unless first-word equality is the requirement, and test a value with punctuation right after the prefix (`urgent-alpha`) plus a near miss.
 
 ## HTTP JSON body
 
-An HTTP node's JSON/body prop is stored as JSON text. The expression language does not support object literals or `JSON.stringify`. Build the document as a template and insert complete JSON tokens:
+A JSON body prop is JSON text. The language has no constructed object literals and no `JSON.stringify`, so build the document as a template of complete JSON tokens:
 
 ```js
 `{"message":${flow.name.jsonEncode()},"payload":${flow.user.stringify()}}`
 ```
 
-- Use `.jsonEncode()` for text or boolean values. It returns a JSON-safe token, including the quotes around text, so do not add another pair of quotes around `${...}`.
-- Use `.stringify()` for a custom object or list.
-- Keep JSON punctuation outside the interpolation and validate against the destination's exact prop before writing.
-
-```bash
-cai expr validate <httpNodeId> --prop <jsonBodyProp> --js-file body-expression.js --json
-cai expr set <httpNodeId> --prop <jsonBodyProp> --js-file body-expression.js --json
-```
-
-MCP: pass the file contents inline as `js`; the set call uses `node_prop_set`.
+`.jsonEncode()` returns a JSON-safe token: quoted for text, bare `true`/`false` for a boolean, so never add a second pair of quotes. `.stringify()` serializes a custom object or list. Keep the JSON punctuation outside the interpolations and validate against the exact body prop before writing.
 
 ## Same-type fallback
 
@@ -47,7 +37,7 @@ flow.label ?? "unknown"
 flow.enabled ?? false
 ```
 
-Fallbacks must be same-type literals. `0` and `false` remain real values.
+`0` and `false` are values; a fallback never replaces them.
 
 ## Boolean condition
 
@@ -56,7 +46,7 @@ flow.email.isNotEmpty()
 inputs.score >= 80
 ```
 
-Validate conditions with `--mode onlyWhen` and without a prop name.
+Validate a condition with `--mode onlyWhen` and no prop name.
 
 ## Dates
 
@@ -65,23 +55,23 @@ inputs.createdAt.toDate() > now.plusDays(-7)
 inputs.createdAt.toDate().format("YYYY-MM-DD")
 ```
 
-Convert text to a date before date math. Use negative amounts to move backward.
+Convert text to a date before date math; a negative amount moves backward. Use Moment format tokens, never JavaScript `Date` constructors or getters.
 
 ## Workflow records
 
-Filter immediately after `workflowData` so the engine can push supported predicates into storage:
+Filter immediately after `workflowData` so supported predicates are pushed into storage, then sort by an advertised field:
 
 ```js
 workflowData("custom.lead")
   .filter(row => row.status === "active")
-  .sortBy("created_at", "desc")
+  .sortBy("createdAt", "desc")
 ```
 
-The collection must exist on the current dev/live rail. A schema declaration alone does not guarantee active records.
+The collection must exist on the current rail; a schema declaration alone does not put rows in it. Record identity fields are `id`, `createdAt`, `updatedAt`.
 
 ## Optional filter inputs
 
-Filters are fail-closed by default: a missing right-hand value matches no records. Use optional matching only when the user's requirement explicitly allows an omitted constraint:
+An empty right-hand value is a real comparison: equality matches only empty fields, a negation or containment matches every row. Skip an omitted constraint only when the requirement allows it:
 
 ```js
 workflowData("custom.lead").filter(
@@ -90,45 +80,57 @@ workflowData("custom.lead").filter(
 )
 ```
 
-Test both the supplied and omitted cases. Empty text may behave as a real value rather than a missing value; do not assume the opt-in drops it.
+With the option on, null, empty text and an empty list skip the constraint; `0`, `false`, whitespace and dates remain real constraints. Test the supplied and the omitted case.
+
+## List membership
+
+For a list field such as tags, membership is a single element: `row.tags.includes(flow.tag)`. `filter`, `some`, `find` and `every` share the same predicate grammar; `map` projects fields rather than building objects.
+
+## Primitive lists
+
+A predicate compares a field of the item, so `flow.weights.filter(w => w >= flow.threshold)` is rejected, and `w.value` on a number compiles as a missing field whose constraint is dropped, matching every item. Aggregate a primitive list with the advertised list operations (`.sum()`, `.count()`, `.max()`), and classify or count its items with a per-item loop whose body returns a flag:
+
+```js
+inputs.runFlowOnList.filter(row => row.status === "completed").map(row => row.outputs).map(row => row.heavyFlag).sum()
+```
+
+`.map()` picks one field per call, so nested picks are chained; the `status` filter keeps failed iterations out of the total.
 
 ## Loop item
 
-Where context exposes `item`, primitive lists use the item directly:
+Where the context exposes `item`, a primitive list uses it directly:
 
 ```js
 item
 ```
 
-Object lists use an advertised field:
+An object list uses an advertised field:
 
 ```js
 item.email
 ```
 
-Inside the child flow, the item arrives through a flow input and is referenced as `flow.<name>`, not `item`.
+Inside the child flow the item arrives as a flow input and is `flow.<name>`, never `item`. A root routing node can read flow inputs directly; no producer node is needed to expose them.
 
 ## Loop output
 
-Run-on-list output is a list of iteration records. Child flow outputs live under `outputs`:
+Run-on-list output is a list of iteration records; child outputs sit under `outputs`:
 
 ```js
 inputs.enrichEach[0].outputs.score
 ```
 
-Confirm the exact binding and field path in context.
+Confirm the binding and the path in the context.
 
-## Troubleshooting sequence
+## Troubleshooting order
 
-1. `cai expr context <node> --prop <prop> --json`
-2. Confirm the intended source is wired and its `sourceNodeId` is correct.
-3. `cai expr validate ...`
-4. `cai expr set ...`
-5. `cai expr decompile ...`
-6. `cai run node ... --json` for isolated destination configuration
-7. `cai run flow <flowId> ... --json` when the expression consumes a wired upstream input
+1. `cai expr context <nodeId> --prop <propName> --json`
+2. Confirm the intended source is wired and its `sourceNodeId` is right.
+3. `cai expr validate <nodeId> --prop <propName> --js '<expression>' --json`
+4. `cai expr set <nodeId> --prop <propName> --js '<expression>' --json`
+5. `cai expr decompile <nodeId> --prop <propName> --json`
+6. `cai run node <nodeId> --inputs <values.json> --json` for the destination alone
+7. `cai run flow <flowId> --inputs <values.json> --json` when the expression consumes a wired input
 8. `cai exec node <nodeExecutionId> --full --json`
 
-MCP: step 4 uses `node_prop_set`; pass expression source and run inputs inline, and set `waitSeconds` on `run_node` or `run_flow` from 0 through 120.
-
-If compilation succeeds but runtime is null or partially empty, inspect `runScope`, the actual input value, and `resolvedConfigs`; do not keep rewriting syntax blindly. A node-only run cannot prove an `inputs.<name>` binding because it does not execute upstream nodes.
+If compilation succeeds but the runtime value is empty or partial, inspect `runScope`, the actual input value and `resolvedConfigs` before touching the syntax again. A node-only run cannot prove an `inputs.<name>` binding because it does not execute upstream nodes.

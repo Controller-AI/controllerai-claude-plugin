@@ -1,22 +1,46 @@
 ---
 name: controllerai-workflows
-description: Build, inspect, edit, test, recover, and publish Controller AI workflows through the cai CLI or typed MCP tools. Use when a user asks to create or change an automation, workflow, flow, or workflow release, or when another Controller AI skill needs the shared lifecycle and safety rules.
+description: Build, inspect, edit, recover, and publish Controller AI workflows and their flows. Use when a user asks to create or change an automation, a flow, or a workflow release, and for the lifecycle rules every other workflow skill relies on.
 ---
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 
-# Controller AI workflows
+# Workflows
 
-The `cai ...` examples are canonical grammar. Follow the transport rules and MCP map in `controllerai-start`; never mix transports within one task. Do not call private REST endpoints or invoke MCP routes outside the typed tools. When the selected transport lacks a capability, say so and name the UI path instead of bypassing it.
+## Use this when
 
-## Rules that break tasks when skipped
+- Creating a workflow, adding or repairing flows, orienting inside an existing graph, validating, checkpointing, restoring, publishing, or deleting.
+- Another skill needs the shared lifecycle rules: which rail an edit lands on, how contracts and IDs behave, what validation and publishing require.
 
-- Lock the effective workflow ID and exact flow ID; see Establish context.
-- Repair the selected workflow and flow instead of creating replacements; see Build protocol.
-- Keep workflow, flow, node, input, and output IDs distinct; see Lifecycle rules.
-- Preserve contract fields in place and refresh their dependents; see Lifecycle rules.
-- Use save, history, and restore for recovery instead of rebuilding; see Lifecycle rules.
-- Treat validation counts as status; prove the requested rail and stop. See Lifecycle rules and Before you finish.
+Load the narrow skill when the work reaches it: nodes, connections, props and wiring → `controllerai-node-config`; computed values and conditions → `controllerai-expressions`; Router, If/Else, loops, joins, subflows → `controllerai-flow-control`; runs and debugging → `controllerai-runs`; schedules, webhooks, app events → `controllerai-triggers`; schemas and records → `controllerai-data`; Ask AI and agent nodes → `controllerai-ai-nodes`; user-facing agents → `controllerai-agents`.
 
-## Establish context
+## How it works
+
+A **workflow** groups flows, custom schemas, data collections and triggers, and its flows share one data store per environment. A **flow** is one canvas and one callable contract: typed inputs, connected nodes, typed outputs. A Return node maps values into the declared outputs; declaring an output does not fill it. Workflow, flow, node, input and output IDs are distinct identities; never swap one for another.
+
+Every graph edit lands on the **development** version. Publishing creates the **live** release; a live agent that uses the workflow as a tool follows its latest live release without an agent publish, while the owner's Test conversations run the development version. Publishing never copies development records into the live store, and every environment keeps its own data.
+
+Every save is a **state**. History lists states in groups and gives candidate state IDs; a restore rolls the definition back to one state and leaves records and external effects untouched. How far back history is listed and how far back a state can be restored are two separate plan limits, so a listed state is not always restorable.
+
+Deleting a workflow tears down its deployed triggers and soft-deletes it. It is refused while any draft or live agent depends on the workflow, and nothing undeletes. The dependency map shows a workflow's agent and workflow callers and the connections it uses. Deleting a flow removes its graph, its contract and the triggers targeting it, and breaks every caller bound to it.
+
+The account event feed records only supported events: connections created, workflows created, updated, deleted, published and run, agents created and published, members added. Settings changes, member removals and label edits are not in it, and a past change that is not recorded cannot be reconstructed from names or current state.
+
+## Rules
+
+1. **Before changing an existing workflow, read its outline and the affected flow**, then repair those IDs rather than creating a replacement workflow or flow. A repair that recreates loses history, triggers and callers.
+2. **Rename contracts in place.** Deleting and recreating an input or output breaks every expression, subflow mapping and agent tool bound to it. After a rename or deletion, re-read the flow and repair the affected dependents before validating or running; a stored input-ID binding survives a rename, so the readback may show nothing to repair.
+3. **"Store, save, log, record" without a named destination means a custom data type plus a create-record node.** A flow output alone persists nothing. When the user names a destination (a sheet, a CRM, an app, a file), write there through that integration; add a platform record only if they also want a copy kept here.
+4. **Validate after structural edits and before publishing.** Fix every listed prop, wire, expression, type, subflow, branch and trigger error, or report each one with what it breaks. Publish refuses errors; `--acknowledge-validation-errors` is for issues the user has seen and accepted, never a shortcut. If the user forbids a repair, report and stop.
+5. **Validation counts are status.** Do not write them into unrelated workflow properties unless the user asks for exactly that.
+6. **Deleting a workflow needs the user's explicit intent.** A confirmation flag is not authorization. Check dependencies first; detach draft tools with `cai agent remove-tool <agentId> --tool <toolId>`, and treat a live agent's republish as its own decision.
+7. **Layout once per changed flow.** After adds, deletes or rewires, run the flow layout as the last structural step; placement at add time only avoids overlap.
+8. **Never weaken the request to make a test pass.** Report an unsupported capability or ask the product question. Keep deliberately armed triggers and advisory-only nodes the user chose.
+9. **A conflict means re-read, then reapply the intent to the current graph.** Never replay a stale document or old IDs; the retried write uses the IDs the current state holds.
+10. **Say "not recorded" and change nothing** when asked to reconstruct history the feed does not hold.
+
+## Recipes
+
+### Establish context
 
 ```bash
 cai auth status --json
@@ -25,82 +49,65 @@ cai use <workflowId>
 cai workflow status --json
 ```
 
-MCP: use `account_status`, then call `workflow_list` and `workflow_status` with explicit `workflowId`; there is no `cai use` or stored pin.
+A create or `cai use` may not win the effective pin: read `selected`, `effectiveWorkflowId` and `pinSource`, and resolve as `pinSource` says (drop the command flag, use `cai use <id>`, or clear an inherited `CAI_WORKFLOW`). `cai config reset` clears stored pins only; `cai doctor` confirms the effective pin and development head.
 
-If no workflow exists, create it with its final name:
+### Create
 
 ```bash
 cai workflow create --name "<clear outcome-oriented name>" --json
 ```
 
-Read `selected`, `effectiveWorkflowId`, and `pinSource`; creation may not win the pin. If unselected, remove a command flag, use `cai use <id>` for a stored pin, or clear inherited `CAI_WORKFLOW`, as `pinSource` directs, then re-check. `cai config reset` clears only stored pins. `cai doctor` verifies the effective pin and development head. On MCP, capture and pass the new `workflowId`. Create with the final name.
+Create with the final name. Read `flowCount` and `nextStep`: with 0 flows, create the first flow with `cai flow create --name "<name>" --json`; with one empty default flow, rename it and build in it; when either field is missing, list the flows before deciding. Add flows only for genuinely separate canvases, and stop at an empty workflow when that is what was asked. A missing projected field is not a failed create: read the full result or the exact inventory before retrying.
 
-After `cai workflow create`, check `flowCount` in the output. If it is 0 (or the field is missing, run `cai flow list --json`), create the first flow with `cai flow create --name "<name>" --json`. If one empty flow already exists, rename it and build in it. Never add a second flow for the first piece of work; add flows only for genuinely separate canvases.
-
-Use IDs returned by the selected transport. For account-wide lists, filter by exact ID or name and owning workflow; never choose the first or latest similar result. Read the selected object's ID, name, and owner once, reuse those IDs, and never rediscover the target by name. A missing projected create field is not failure: inspect the complete result and exact inventory before retrying. Never invent identifiers.
-
-To orient inside a workflow, prefer one call over many:
+### Orient
 
 ```bash
 cai workflow outline --json
+cai workflow state --flow <flowId> --json
+cai flow get <flowId> --json
 ```
 
-`cai workflow state --json` is bounded; add `--flow <flowId>` for node and edge identities. Use `workflow document` only for complete opaque JSON. `workflow outline` shows flows, contracts, graph `deps`, triggers, and data inventory. Use `flow get` for props and expressions.
+The outline shows flows, contracts, graph dependencies, triggers and data inventory in one call. State is a bounded projection; pass the flow ID for node and edge identities. The flow read exposes props and expressions.
 
-## Build protocol
+### Build
 
-1. Translate the request into inputs, steps, outputs, trigger, integrations, failure behavior, and publish intent. When the request says to store, save, log, or record something and names no external destination, that means a data type plus a create-record node (`controllerai-data`) — a flow output alone does not persist anything. When the user names the destination (a spreadsheet, a CRM, another app, a file), write there with that integration's node instead; add a platform record only when the user also wants a copy kept here.
-2. Inspect the current workflow before editing: `cai workflow outline`, then `cai flow get <flowId>`. Repair those IDs; do not create replacements for a repair.
-3. Create or select a flow. Define flow inputs and outputs before nodes that derive props from them.
-4. Build in execution order. After each material change, read it back with the corresponding `get`, `props`, `status`, or `list` command.
-5. Run `cai flow layout <flowId>` once per changed flow as the LAST step after a headless build or any batch of structural edits (adds, deletes, rewires) — add-time placement avoids overlap, but only layout produces clean left-to-right columns. An open builder adopts your layout automatically.
-6. Test on the development rail. Debug every failed or suspicious node; a green top-level status alone is insufficient.
-7. Re-read `cai workflow status`. Publish only when the user asked for a live change or clearly authorized deployment.
+1. Translate the request into inputs, steps, outputs, trigger, integrations, failure behavior and publish intent.
+2. Declare flow inputs and outputs before nodes whose props derive from them. Pass a human display label; use the current binding from `flow get` (`jsBinding`) or the outline (`binding`), never the diagnostic `legacyBinding`.
+3. Add nodes in execution order and name each after the data it produces; downstream bindings are seeded from that name when wired.
+4. Lay out each changed flow, validate, test on development, re-read status. Publish only when the user asked for a live change or authorized deployment.
 
-For multi-domain work, read [references/command-map.md](references/command-map.md) before editing.
-
-## Route specialized work
-
-Load the narrow skill when the task reaches that surface:
-
-- Node discovery, initialization, connections, props, or wiring: `controllerai-node-config`
-- Dynamic values or conditions: `controllerai-expressions`
-- Router, If/Else, loops, joins, or subflows: `controllerai-flow-control`
-- Test execution or debugging: `controllerai-runs`
-- Scheduled, webhook, or integration events: `controllerai-triggers`
-- Schemas or records: `controllerai-data`
-- Ask AI or Agent nodes: `controllerai-ai-nodes`
-- User-facing agents and their workflow tools: `controllerai-agents`
-
-## Lifecycle rules
-
-- All graph edits target development. Live remains unchanged until `cai workflow publish`.
-- Email verification is not a publishing prerequisite. An unclaimed agent-created account may publish; email claiming only raises its monthly usage cap and enables account recovery.
-- On the CLI, prefer `--json` for decisions and IDs; human tables are for presentation. MCP tools return typed JSON. If human output looks odd, re-run the same read with `--json` before acting.
-- A workflow contains flows; a flow is one canvas. Do not confuse their IDs.
-- For flow inputs, pass a human `--display` label and use the current binding from `flow get` (`jsBinding`) or `workflow outline` (`binding`). Rename an existing contract input or output in place; do not delete and recreate it. After any rename or deletion, re-read the flow and repair every expression and subflow mapping before validation or execution. `legacyBinding` is diagnostic-only.
-- Name nodes after the data they produce. Downstream input bindings are seeded from that name when wired.
-- Use `cai workflow save --name "<checkpoint>"` before a risky rewrite. Named saves and state renames work on every plan.
+### Publish
 
 ```bash
+cai workflow status --json
+cai trigger list --json
+cai workflow publish --json
+```
+
+Read status and every trigger first: publishing activates enabled triggers on the live release. The publish refuses validation errors and may return an approval that the user must grant.
+
+When the publish returns an approval, the CLI polls it; if polling is interrupted, `cai approval resume <approvalId>` continues the same intent instead of publishing again.
+
+### Checkpoint and recover
+
+```bash
+cai workflow save --name "<checkpoint>" --json
 cai workflow history --json
 cai workflow history --group <groupId> --json
 cai workflow restore --state <stateId> --json
 ```
 
-- **Use version history for recovery.** Each save is a state. History retention is unlimited on Free, Max, and custom plans and 90 days on Pro/Starter; restore eligibility is 7 days on Free, 90 on Pro/Starter, and unlimited on Max/custom. Expand groups to capture state IDs. Restore rolls back the definition only; records and external effects remain.
-- **Validate after structural edits and before publish.** Fix every listed prop, wire, expression, type, subflow, branch, and trigger error. Publish refuses errors; use `--acknowledge-validation-errors` only after explicit approval of the listed issues. Flow deletion also removes its contract, graph, and triggers and breaks callers; validation shows each break.
-- Treat validation warning and error counts as status only. Never write them or their messages into unrelated workflow properties.
-- On a conflict, re-read current state and reapply intent. Do not replay stale IDs or whole documents.
-- Never delete a workflow without the user's explicit intent; the CLI requires `--yes` but that is not a substitute for authorization. MCP: `workflow_delete` has no `yes` parameter, but still requires the same explicit intent. `cai workflow delete` tears down deployed triggers and soft-deletes the workflow row. Historical workflow/version data remains stored, but there is currently no restore command for the deleted row.
-- **Check dependencies before shared-resource changes.** `cai deps` shows attached agents, workflow callers, and connections; `cai deps --account` maps the account. Deleting a workflow with agent dependents is refused server-side, and `--force` is a deprecated, inert compatibility flag. Detach draft tools with `cai agent remove-tool <agentId> --tool <toolId>`. If still LIVE, use `cai agent publish <agentId>` after explicit approval. A dependent agent publish or delete is its own live/destructive decision. Then retry deletion.
-- **Use the account feed only for recorded history.** Filter `cai events` by type, time, workflow, and cursor. It omits deletions, settings, member removals, and labels. For an unrecorded past change, say it is not recorded and change nothing; names and current state are not proof.
-- **Share real product links.** Relevant publish, development run, agent, connection, workflow get/status, and agent get outputs include `appUrl` when known. Share returned links; never guess one. MCP `connection_connect_url` returns its link immediately.
-- Never silently weaken the request to make a test pass. Report an unsupported capability or ask about a real product decision.
+Save before a risky rewrite. Expand a group to find the state ID; restore by state, not by group.
 
-## Before you finish
+### Delete
 
-Before claiming success, verify all of the following:
+```bash
+cai deps --json
+cai workflow delete <workflowId> --yes
+```
+`cai deps --account` maps the whole account. The `--force` flag is deprecated and inert.
+
+## Verify
 
 ```bash
 cai workflow outline --json
@@ -110,17 +117,10 @@ cai flow get <flowId> --json
 cai run flow <flowId> --inputs <values.json> --json
 ```
 
-MCP: pass the parsed values in `inputs` and set `waitSeconds` on `run_flow`.
+Evidence that a build works: validation reports zero errors, or each remaining error is reported with its effect; required connections and props are complete; expressions resolve to the expected values, with intentional empties explained; the expected branch and error paths ran where practical; the flow outputs contain the promised values; the development or live state matches the request; the final outline matches the request, with only your own abandoned scratch objects removed. A checkpoint or a rename needs its readback, not a run. Once the requested blockers are fixed and each changed path ran once, stop; warnings alone do not justify a redesign.
 
-Then confirm:
+## Report
 
-- **`cai workflow validate` reports `errors: 0`.** Every error is fixed, or explicitly reported to the user with what it breaks — never summarized away, never called cosmetic. A red canvas and a "done" claim cannot coexist.
-- Required node connections and props are complete.
-- Expressions compiled and their resolved configs are non-null.
-- Expected branch or error paths were exercised where practical.
-- Flow outputs contain the promised values.
-- The reported live/dev state matches what the user asked for.
-- Final outline inventory matches the request. Remove only scratch schemas, flows, nodes, and triggers created during abandoned attempts.
-- After fixing requested blockers and testing each changed path once, stop. Do not redesign for non-blocking warnings.
+What was built, what ran and what it returned, whether it is published, and any connection or product decision still pending. Share returned product links only; never guess one.
 
-State what was built, what was tested, whether it was published, and any user-owned connection or product choice still pending.
+Read [references/command-map.md](references/command-map.md) for the command families by domain when a task spans several areas.

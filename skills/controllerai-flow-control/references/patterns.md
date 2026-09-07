@@ -1,18 +1,19 @@
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 # Flow-control patterns
 
 ## Guard a side effect
 
-Use `only-when` when false should mean "skip this action" and nothing else:
+`only-when` means "skip this action, nothing else":
 
 ```text
 Read record -> Send notification [only when status changed]
 ```
 
-Test both true and false. A false run should show an intentional skip reason.
+Test true and false; the false run shows `only_when_false` on that node and downstream stays eligible.
 
 ## Exclusive decision
 
-Use If/Else when only one outcome must occur:
+If/Else when exactly one outcome must occur:
 
 ```text
 Score -> If/Else
@@ -21,11 +22,11 @@ Score -> If/Else
            Else          -> Record unknown
 ```
 
-Put the most specific/highest-priority conditions first. Never write a complement condition for Else.
+Most specific condition first; Else is the fallback and never gets a complement condition.
 
 ## Independent fan-out
 
-Use Router when every applicable action should run:
+Router when every applicable action should run:
 
 ```text
 New order -> Router
@@ -36,95 +37,57 @@ New order -> Router
 
 One order may take all three routes. If that is not acceptable, use If/Else.
 
-## Grouped branch condition
+## Grouped conditions
 
-Only Router and If/Else branch commands accept grouped conditions. The outer rows are OR and the expressions within one row are AND:
+Outer rows are OR, entries within a row are AND, and each string compiles on its own:
 
 ```bash
-cai branch update <controlNodeId> \
-  --route <routeId> \
-  --condition-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' \
-  --json
+cai node only-when <nodeId> --groups-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
+cai branch update <controlNodeId> --route <routeId> --condition-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
 ```
-
-Each string must compile independently. Node `only-when` has no `--condition-json`; if exact compound node-only semantics are required, report the limitation instead of using a private API or weakening the guard.
 
 ## Per-item subflow
 
-Use `cai flow for-each` to create the item flow, typed item input, loop node, and list wiring atomically. First run `cai node get <sourceNodeId> --json`, choose the intended `outputs[]` entry, and pass its exact opaque `id` as `--source-output`; never pass its label or assume the first output. Omit list-selection flags when the whole selected output payload is a list; use `--list-field <nested.path>` for a list below `.data`; reserve `--list-js` for an exact advanced expression or `--js-file <path|->` for that expression in a UTF-8 file/stdin. The three selection forms are mutually exclusive.
+```bash
+cai node get <sourceNodeId> --json
+cai flow for-each --flow <parentFlowId> --from <sourceNodeId> --source-output <exactOutputId> --name "<item flow name>" --item-type <type> --json
+```
 
-MCP: call `flow_for_each_scaffold` and pass expression source inline as `listJs`.
-
-The runtime limit defaults to 500 items and supports 1 through 10000. Use `--max-items` when the intended bound differs, then verify the returned read-back. Put meaningful work inside the generated body flow and declare body outputs before consuming aggregate results.
-
-Decide explicitly whether one child-flow failure should stop the sequential loop. Use `--continue-on-error` only when partial completion is acceptable and downstream logic handles failed iteration records. It does not recover a list or mapping expression that fails before an iteration starts.
+The scaffold creates the item flow, its typed item input, the loop node and the list wiring in one operation, then materializes the optional cap; a failure setting the cap does not roll the scaffold back. The body receives one item, not the whole list; a custom-shaped item and a stored record (`dataRecord.custom.*`) are different types. Continue past a failed iteration (`--continue-on-error`) only when partial completion is acceptable and the downstream logic handles failed iteration records (null outputs with a status and an error); it cannot rescue a list or mapping expression that fails before the child starts.
 
 ## Converge exclusive paths
 
-Initialize Join Paths and select its active-path mode:
-
 ```bash
-cai node init \
-  --flow <flowId> \
-  --node registry_flow \
-  --key registry_flow-merge \
-  --name "Join paths" \
-  --json
+cai node add --flow <flowId> --node registry_flow --key registry_flow-merge --name "Join paths" --json
 cai node set <joinNodeId> --prop mode --value chooseActivePath --json
 cai node props <joinNodeId> --json
-# If returned props require it:
 cai node set <joinNodeId> --prop pathDataType --value <returnedTypeValue> --json
 cai node connect --flow <flowId> --from <firstBranchTailNodeId> --to <joinNodeId> --json
 cai node connect --flow <flowId> --from <secondBranchTailNodeId> --to <joinNodeId> --json
-cai node init \
-  --flow <flowId> \
-  --node <sharedNodeSlug> \
-  --key <sharedNodeKey> \
-  --name "<shared action>" \
-  --after <joinNodeId> \
-  --json
+cai node add --flow <flowId> --node <sharedNodeSlug> --key <sharedNodeKey> --name "<shared action>" --after <joinNodeId> --json
 ```
 
-Set `pathDataType` only when returned props require it, using an exact returned option. Repeat the branch-tail connection for every type-compatible exclusive path. If the shared action already exists, connect it after Join Paths instead of initializing a replacement. Do not connect several branches directly to an ordinary node or duplicate the action. `chooseActivePath` requires at most one active input, so do not use it after a Router whose routes can overlap. Run one test per branch and stop after all pass.
+Set `pathDataType` from the returned options once `chooseActivePath` reveals it. Repeat the tail connection for every type-compatible exclusive path; if the shared action already exists, connect it after Join Paths instead of adding a replacement. `chooseActivePath` allows at most one active input and stops the flow when none is active unless `continueIfNoActivePath` is enabled (then it passes null); after a Router whose routes can overlap use `passThrough`, which returns one field per connected input with the blocked ones null. Run one test per branch and stop after all pass.
 
 ## Return a flow value
 
-Declare the output before the Return response node so its generated prop exists:
-
 ```bash
-cai flow output add <bodyFlowId> \
-  --display "<output label>" \
-  --name <output_key> \
-  --type <type> \
-  --json
-cai node init \
-  --flow <bodyFlowId> \
-  --node registry_flow \
-  --key registry_flow-return-response \
-  --name "Return <value>" \
-  --after <producerNodeId> \
-  --json
+cai flow output add <bodyFlowId> --display "<output label>" --name <output_key> --type <type> --json
+cai node add --flow <bodyFlowId> --node registry_flow --key registry_flow-return-response --name "Return <value>" --after <producerNodeId> --json
 cai node props <returnNodeId> --json
 cai expr context <returnNodeId> --prop <generatedOutputProp> --json
 cai expr set <returnNodeId> --prop <generatedOutputProp> --js '<producer binding>' --json
 ```
 
-Do not guess `registry_flow-return` or `registry_flow-response`. Run the body flow and verify its top-level output contains the promised value.
+Declare the output before adding the Return node so its generated prop exists. Do not guess `registry_flow-return` or `registry_flow-response`. Run the body flow and check the promised top-level output. Populate the outputs on every intended return path, including the "nothing found" path, which should return a clear result without performing writes.
 
 ## Error path
 
-Continue-on-error is for steps whose failure must not block the main path — notifications, logging, optional enrichment. Enabling it captures the node's error, downstream nodes still execute (receiving null for the failed node's output), and the run ends `completed_with_error`:
+Continue-on-error suits steps whose failure must not block the main path: notifications, logging, optional enrichment. The node's error is captured, downstream nodes run with null for its output, and the run ends `completed_with_error`.
 
 ```bash
 cai node continue-on-error <nodeId> --enable --json
-```
-
-MCP: call `node_continue_on_error_set` with `enabled: true` or `enabled: false`.
-
-Wiring the Error output is OPTIONAL — add it when a failure needs explicit handling, not as a precondition:
-
-```bash
 cai node connect --flow <flowId> --from <nodeId> --to <handlerNodeId> --output error --json
 ```
 
-Never enable continue-on-error on critical-path steps (validate → charge → confirm must fail fast), and never merely to make the parent execution green. Read back the setting after changing it.
+Wiring the Error output is optional. Never enable continue-on-error on a critical path (validate, charge, confirm must fail fast) and never to make a parent run green. Read the setting back after changing it.

@@ -1,167 +1,110 @@
 ---
 name: controllerai-flow-control
-description: Design and configure Controller AI execution paths using only-when rules, Router routes, If/Else branches, for-each loops, and subflows. Use when work must branch, fan out, skip, iterate over a list, call another flow, converge paths, or handle errors without changing the user's intended semantics.
+description: Design and configure Controller AI execution paths with only-when guards, If/Else branches, Router routes, for-each loops, subflows, Join Paths and error handling. Use when work must skip, branch, fan out, iterate over a list, call another flow, converge, return a value, or continue after a failure without changing the user's intended semantics.
 ---
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 
-# Controller AI flow control
+# Flow control
 
-The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
+## Use this when
 
-Choose by intended runtime semantics.
+- A flow must skip an action, choose one path, run every matching path, repeat work per item, call another flow, converge exclusive paths, return a value, or continue after a failure.
+- A run shows an unexpected skip, a branch that never fires, an empty return, or a loop that stops early.
 
-## Rules that break tasks when skipped
+Conditions are written with the expression discipline in `controllerai-expressions`; components are found and configured with `controllerai-node-config`; runs are read with `controllerai-runs`.
 
-- Guard the exact action with node `only-when`; see Conditions.
-- Use If/Else for one path and Router for all matches; see Pick the correct primitive.
-- Keep downstream wiring after node-only skip; see Conditions.
-- Never invent a missing condition or Router order; see If/Else and Router.
-- Build standard loops only with `flow for-each`; see Loops.
-- Converge paths through Join Paths; see Subflows and convergence.
-- Fail missing comparisons closed; keep money paths blocking. See Conditions, Loops, and the error pattern.
-- Never acknowledge validation errors without explicit approval; see `controllerai-workflows` Lifecycle rules.
+## How it works
 
-## Pick the correct primitive
-
-| Intent | Primitive | Semantics |
+| Intent | Primitive | Runtime semantics |
 | --- | --- | --- |
-| Skip one action when a condition is false | Node `only-when` | No alternate path |
-| Choose exactly one path | If/Else | First matching branch runs; Else is last |
-| Run every matching path | Router | Conditions are independent; multiple routes may run |
-| Apply work to every list item | `flow for-each` | Atomic loop scaffold with typed item flow |
-| Reuse a typed unit of work once | Run flow/subflow node | Explicit input and output contract |
-| Continue after an action error | Error output or continue-on-error | Error behavior is explicit and testable |
+| Skip one action when a condition is false | node `only-when` | No alternate path; the node records `only_when_false`, downstream stays eligible |
+| Choose exactly one path | If/Else | The first matching branch runs; Else is the mandatory last fallback |
+| Run every matching path | Router | Conditions are independent; every matching route runs, possibly several |
+| Do work for every list item | `flow for-each` loop | A typed body flow runs once per item, sequentially, under an item cap |
+| Reuse a typed unit of work once | Run flow (subflow) | Explicit input and output mapping to another flow's contract |
+| Continue after a failed action | continue-on-error / Error output | The error is captured, downstream sees null for that node, the run ends `completed_with_error` |
+| One action after whichever exclusive path ran | Join Paths (`registry_flow-merge`) | `chooseActivePath` passes the single active input's value on; `passThrough` returns one field per connected input (blocked ones null) and suits fan-out that can overlap |
+| Give a flow its return value | Return response (`registry_flow-return-response`) | Maps producer values into the declared outputs; without it an otherwise successful flow returns empty outputs |
 
-Do not substitute one primitive merely because its component is easier to find.
+Skip reasons are the evidence: a false guard records `only_when_false`; a node on an untaken branch or an unmatched route records `upstream_skipped`. Choose the primitive by the semantics the caller and the tests need, never because a component was easier to find.
 
-## Conditions
+A fresh If/Else ships with one blank `If` branch and an Else; the blank condition is a validation blocker until it is set. Router routes cannot be reordered because every match runs. Loops run sequentially with a cap that defaults to 500 items (1 to 10000); a list over the cap fails before any iteration, never truncates. `continueOnIterationError` on a loop node continues past a failed child iteration and cannot help when the list or mapping expression fails before any child starts; node-level continue-on-error on the loop node lets the parent flow continue past that failed loop with a null output, but repairs nothing and resumes no iteration. With `chooseActivePath`, zero active inputs stop the flow at the join unless `continueIfNoActivePath` is enabled, which passes null on. Setting a subflow's target synthesizes mapping props from the target's current inputs; when those inputs change, set the target again and remap. Deleting a flow removes its graph, contract, triggers and caller links; turning continue-on-error off deletes the node's Error output and its edges.
 
-Before writing any condition:
+## Rules
+
+1. **Guard the action that must skip with `only-when`; do not replace a node skip with If/Else.** A false guard does not stop downstream execution (the skipped node just yields no value), so guard downstream separately or branch when it must skip too.
+2. **Never invent a missing condition** from names, sample values or one observed run. Leave the branch blank, report the blocker and ask; a missing business rule is not yours to guess.
+3. **Update the blank default If branch before adding another branch.** Adding beside it leaves a blocker and a duplicate.
+4. **Order is behavior only for If/Else.** Put the most specific condition first, never write a complement condition for Else, and never simulate Router order by deleting routes or chaining descendants; leave a fan-out unchanged unless the user authorizes a redesign.
+5. **Build per-item work with `flow for-each`**, never by hand-assembling the injection and mapping pattern. Put the real work in the generated body flow and declare its outputs before consuming aggregate results. Continue past failed iterations only when partial completion is acceptable and the downstream logic handles failed iteration records.
+6. **Compound guards are supported**: a node guard takes one boolean expression or grouped conditions (inner list AND, outer list OR); a root `&&` or `||` inside one expression is not. Never weaken a rule to fit the grammar, and never probe a private API.
+7. **Fail missing comparisons closed** with a same-type boundary (`(flow.unitsLeft ?? 5) < 5`), and keep money paths blocking: charges, purchases, transfers and refunds never continue on error, and never enable continue-on-error just to make a run green.
+8. **Converge exclusive paths through Join Paths**; never wire several branches straight into an ordinary node and never duplicate the shared action.
+9. **A flow that returns data needs a Return response node** bound to declared outputs. Every Return writes every declared output, unbound ones as null, and a later Return (in execution order) overwrites an earlier one, so a partial Return can erase a value; design one Return per path unless merging is intended.
+10. **Read the branch list after every edit.** Warnings about missing conditions or unwired paths are blockers even when a run looks green.
+
+## Recipes
+
+### Guard one action
 
 ```bash
-cai expr context <controlNodeId> --json
-cai expr validate <controlNodeId> --mode onlyWhen --js '<boolean expression>' --json
-```
-
-For one guarded action:
-
-```bash
+cai expr context <nodeId> --json
+cai expr validate <nodeId> --mode onlyWhen --js '<boolean expression>' --json
 cai node only-when <nodeId> --js '<boolean expression>' --json
+cai node only-when <nodeId> --groups-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
 ```
 
-Use `--clear` only when the user's intent is to remove the guard.
+Use `--clear` only when removing the guard is the user's intent.
 
-Guard the action that must skip. Do not substitute If/Else for a node-only skip. Its `only_when_false` does not block ordinary output; downstream remains eligible. Keep wiring. Guard downstream separately or branch if it must also skip.
-
-Node `only-when` takes one restricted boolean through `--js` or `--js-file`, or grouped conditions through `--groups-json '[["a","b"],["c"]]'` (inner arrays are AND, outer rows are OR). Root scalar `&&` or `||` inside one expression is unsupported; use `--groups-json` for compound guards. Grouped `string[][]` conditions exist only on branch add/update, with outer rows OR and inner entries AND. Use them only when branch semantics fit. If an exact compound node-only guard is required, report it as unsupported; do not weaken the rule or probe private APIs. For a missing number that must fail `< 5`, use a same-type boundary such as `(flow.unitsLeft ?? 5) < 5`.
-
-Choose the primitive by the runtime signal that callers and tests need. A false node `only-when` records `skipReason: "only_when_false"`; a node on an untaken If/Else branch or unmatched Router route records `skipReason: "upstream_skipped"`.
-
-## If/Else and Router
-
-Discover and initialize the appropriate control component using `controllerai-node-config`, then inspect its exact branch IDs:
+### If/Else and Router
 
 ```bash
 cai branch list <controlNodeId> --json
-```
-
-A fresh If/Else already contains one blank `If` branch and an Else branch. The blank condition is a publish/runtime blocker: copy that default branch ID from `branch list` and update it before adding another condition branch. Do not leave the default blank and create a replacement beside it.
-
-Never invent a missing condition from node names, current values, or one observed run. If no authoritative platform surface supplies the business rule, leave the branch blank, report the blocker, and ask the user.
-
-```bash
-cai branch update <ifElseNodeId> \
-  --route <defaultIfBranchId> \
-  --name "<meaning>" \
-  --js '<boolean expression>' \
-  --json
-```
-
-Add another condition only when the decision needs another non-Else case. Router routes are independent, so update an existing blank route or add each intended route explicitly:
-
-```bash
+cai branch update <controlNodeId> --route <defaultIfBranchId> --name "<meaning>" --js '<boolean expression>' --json
 cai branch add <controlNodeId> --name "<meaning>" --js '<boolean expression>' --json
-cai branch update <controlNodeId> --route <routeOrBranchId> --js '<boolean expression>' --json
-cai branch connect <controlNodeId> --route <routeOrBranchId> --to <targetNodeId> --flow <flowId> --json
-```
-
-For If/Else, order is behavior:
-
-```bash
+cai branch update <controlNodeId> --route <routeId> --condition-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
+cai branch connect <controlNodeId> --route <routeId> --to <targetNodeId> --flow <flowId> --json
 cai branch reorder <ifElseNodeId> --order <conditionId1,conditionId2> --json
 ```
 
-List every condition branch exactly once and omit Else; the operation keeps Else last. Router routes cannot be reordered because every match runs. Do not simulate order by deleting a route or serializing its downstream nodes. Leave the fan-out unchanged unless the user explicitly authorizes a redesign.
+Find the control component with `controllerai-node-config`, then read the branch IDs. Grouped conditions are OR of AND rows, each string compiled separately. Add an If branch only for another non-Else case; add a Router route for each intended independent match. Reorder lists every condition branch exactly once and omits Else, which stays last. Wire every returned route ID explicitly.
 
-After edits, run `cai branch list` again. Treat its warnings about missing conditions or unwired paths as blockers: an unwired selected path can end with an apparently green execution.
-
-## Loops
-
-Never assemble the standard per-item subflow pattern by hand:
+### Loop over a list
 
 ```bash
 cai node get <listProducingNodeId> --json
-cai flow for-each \
-  --flow <parentFlowId> \
-  --from <listProducingNodeId> \
-  --source-output <exactOutputId> \
-  --name "<item flow name>" \
-  --item-type <text|number|date|boolean|custom.type> \
-  --json
-```
-
-Use repeatable `--item-field <id:type[:display]>` only when creating a new `custom.*` item type.
-
-Copy `--source-output` from the selected node's exact `outputs[].id`. It is an opaque ID, not `displayName`, and there is no first-output default. This matters for Router, If/Else, and error outputs as well as ordinary action nodes.
-
-- If the source's whole output is the list, omit both `--list-field` and `--list-js`.
-- If the list is nested in the source payload, use `--list-field` with the dot-delimited path below `.data`; the operation derives the not-yet-created loop input binding deterministically.
-- Use `--list-js` only for an advanced exact expression. For multiline or shell-sensitive source, use `--js-file <path|->` instead. Both are mutually exclusive with `--list-field` and with each other; copy the wrapper/binding shape from expression context rather than guessing it.
-
-MCP: pass expression source inline as `listJs` to `flow_for_each_scaffold`; the server cannot read a local `--js-file` path.
-
-- The runtime cap defaults to 500 items and accepts 1 through 10000. Set `--max-items` explicitly when the product requirement differs. The scaffold operation creates the core graph first, then materializes and verifies this optional prop. The cap is all-or-nothing at runtime: a list larger than the cap throws and NOTHING iterates — there is no partial truncation.
-
-Changing an existing loop: update its loop-node props directly:
-
-```bash
+cai flow for-each --flow <parentFlowId> --from <listProducingNodeId> --source-output <exactOutputId> --name "<item flow name>" --item-type <text|number|date|boolean|custom.type> --max-items <n> --json
 cai node set <loopNodeId> --prop maxItems --value <n> --json
 cai node set <loopNodeId> --prop continueOnIterationError --value true --json
 ```
 
-MCP: use `node_prop_set` for both writes.
+`--source-output` is the exact `outputs[].id` of the selected node, never a display name, and there is no first-output default (branch and error outputs included). When the whole output is the list, omit the list selectors; for a nested list use `--list-field` with the dot path below `.data`; reserve `--list-js` for an exact advanced expression whose shape you took from the context; the selection forms are mutually exclusive. `--item-field <id:type[:display]>` (repeatable) is only for creating a new `custom.*` item type; stored records use `dataRecord.custom.*`. Set the cap on purpose when the requirement differs from 500, decide `--continue-on-error` explicitly, then read the returned warnings and follow `nextSteps` in order; a list/item type mismatch means created but unverified. In mappings, `item` exists only where the context exposes it; inside the body flow the item is `flow.<itemInput>`; aggregate results are iteration records with child outputs under `outputs`.
 
-This is not `cai node continue-on-error`, which configures the node-level Error output — a different feature.
+For multiline or shell-sensitive list source, pass `--js-file <path|->` instead of `--list-js`.
 
-Read every returned warning. A list/item type mismatch means the scaffold is not verified even though it was created. Follow the returned `nextSteps` in order.
-
-Inside loop mappings, `item` exists only where context exposes it. Inside the body flow, use its `flow.<itemInput>` binding. Downstream loop results are iteration records whose declared child outputs are under `.outputs`.
-
-Loops run sequentially. `--continue-on-error` applies to a failed child iteration; a list expression or mapping/config expression that fails before the child starts still aborts the loop. Test empty, one-item, several-item, over-limit, and intended iteration-error behavior.
-
-Never enable continue-on-error on a money path; charges, purchases, transfers, refunds, and other spend must fail fast.
-
-## Subflows and convergence
-
-Define the called flow's inputs and outputs first. Then initialize a Run flow component and bind it:
+### Call another flow
 
 ```bash
 cai node set-flow <runFlowNodeId> --flow <calledFlowId> --json
 cai node props <runFlowNodeId> --json
 ```
 
-MCP: `cai node set-flow` maps to `node_subflow_set`.
+Define the called flow's inputs and outputs first, add the Run flow component, set the target, then bind the generated mapping props with expressions.
 
-Setting the target flow creates mapping props from the target's current inputs. If those inputs later change, run `set-flow` again and reconfigure mappings.
+### Converge, return, handle errors
 
-For one action after whichever exclusive branch runs, use `registry_flow-merge` (Join Paths) in `chooseActivePath` mode, then place the shared action after it. Never wire several branches directly to an ordinary node or duplicate the shared action. Follow the exact recipe in [references/patterns.md](references/patterns.md) and test each branch once.
+```bash
+cai node add --flow <flowId> --node registry_flow --key registry_flow-merge --name "Join paths" --json
+cai node set <joinNodeId> --prop mode --value chooseActivePath --json
+cai flow output add <bodyFlowId> --display "<output label>" --name <output_key> --type <type> --json
+cai node add --flow <bodyFlowId> --node registry_flow --key registry_flow-return-response --name "Return <value>" --after <producerNodeId> --json
+cai node continue-on-error <nodeId> --enable --json
+cai node connect --flow <flowId> --from <nodeId> --to <handlerNodeId> --output error --json
+```
 
-Return semantics: a flow that should return data needs `registry_flow-return-response`; without it callers see empty success. Declare outputs first, initialize that exact component after the producer, then bind its generated prop with `cai expr set`. Do not guess component keys. See [references/patterns.md](references/patterns.md). Multiple completed Return nodes merge, with later values overwriting earlier ones; design for one Return per path unless merging is intended.
+Join Paths: connect every type-compatible branch tail to it (all connected input types are checked, inactive paths included, which is why `pathDataType` is asked for once `chooseActivePath` reveals it), set `pathDataType` from the returned options, and place the shared action after it (`--after <joinNodeId>`, or connect the existing action). Return: declare the output first so its generated prop exists, add the exact component after the producer, then bind the prop through the expression setter. Error output wiring is optional; add it only when a failure needs explicit handling.
 
-Deleting a flow removes its graph, contract, triggers, and caller links. Validate and restore if mistaken. Turning `continueOnError` off also deletes its Error output and edges; validate and restore likewise.
-
-Read [references/patterns.md](references/patterns.md) for concise canonical patterns.
-
-## Before you finish
+## Verify
 
 ```bash
 cai branch list <controlNodeId> --json
@@ -170,9 +113,10 @@ cai run flow <flowId> --inputs <values.json> --json
 cai exec tree <workflowExecutionId> --json
 ```
 
-- Every branch has the intended condition and a wired target.
-- If/Else ordering matches priority and Else remains last.
-- Router fan-out is intentional when more than one condition can be true.
-- Loop item type and list expression compile against actual source data.
-- Expected true, false/Else, empty-list, one-item, several-item, over-limit, and error paths are tested.
-- The execution tree shows intended `only_when_false` or `upstream_skipped` reasons and no unexplained missing nodes.
+Every branch has its intended condition and a wired target; If/Else order matches priority with Else last; Router fan-out is intentional where more than one condition can be true; the loop's item type and list expression compile against real data; the paths the task implies ran: true, false or Else, empty list, one item, several, over the cap, and the intended error path; the execution tree explains every `only_when_false` and `upstream_skipped` and shows no unexplained missing node; a loop's outer success is not proof for every item, so inspect iteration records and surface individual failures.
+
+## Report
+
+Which primitive carries each decision and why, the tested paths with their outcomes, any rule you could not set because the business rule was missing, and any error-continuation you enabled and where.
+
+Read [references/patterns.md](references/patterns.md) for the canonical shapes: guard, exclusive decision, fan-out, grouped conditions, per-item subflow, convergence, return, error path.

@@ -1,7 +1,7 @@
 {
   "name": "controllerai",
   "displayName": "Controller AI",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Build, run, debug, and maintain visual automations with Controller AI. User-facing agent building is also supported.",
   "author": {
     "name": "Controller AI",

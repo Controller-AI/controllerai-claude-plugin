@@ -1,93 +1,84 @@
 ---
 name: controllerai-runs
-description: Run and debug Controller AI nodes on development and flows on development or the published live version — execution history, ports, outputs, skip reasons, and resolved configs. Use when verifying or testing a build, investigating a failed or green-but-wrong run, resolving an unknown output type, checking expression values, or proving what data and configuration reached each node.
+description: Run Controller AI nodes and flows and read execution evidence: inputs, resolved configs, outputs, ports, skips, warnings and output-type adoption. Use when proving a build works, investigating a failed or green-but-wrong run, resolving a dynamic output type, or checking what an expression produced at runtime.
 ---
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 
-# Controller AI runs
+# Runs
 
-The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
+## Use this when
 
-Think "real run", not "simulation". `run node` always uses development; `run flow` defaults to development and can target the published live version. Both rails execute real integration actions (messages send, records change, provider usage is spent); development isolation covers the data store only. Running is a required part of building — one successful run is how a dynamic node's output type gets resolved for the next step — so mitigate risk before running.
+- A node or flow was just built or changed and needs proof with real values.
+- A run failed, or finished green with empty, partial or wrong data.
+- A dynamic node's output type is unknown and downstream expressions cannot be written.
 
-## Consequential actions: mitigate with the user, don't refuse
+Expression authoring belongs to `controllerai-expressions`, branch and loop structure to `controllerai-flow-control`, trigger replay to `controllerai-triggers`.
 
-Before running an action with external consequences (send, reject, delete, charge), tell the user plainly what will really happen and ask for a safe target:
+## How it works
 
-- Email/message sends → "What address/channel can I send the dev run to?" (often the user's own).
-- Record deletes/updates → "Is there a record I can safely use, or shall I create one first and delete that?"
-- People-affecting actions (e.g. reject a candidate) → "Which one is safe to use for this run?"
+**A run is real.** Node runs always execute on development; flow runs execute on development by default or, explicitly, on the published live version. Both call the real providers: messages send, records change, usage is spent. Development isolation covers the workflow data store only.
 
-If the user declines running the action, accept it. Then keep the build honest: declare the node's output contract from the provider's documented response —
+**Running resolves types.** A dynamic integration node gets its output type from one completed representative run (`outputTypeAdoption`), and every downstream expression depends on that type. When the user declines to run a consequential action, the fallback is a declared output contract built from the provider's documented response; it is marked `declared (unverified)` and the first real completed run verifies it.
 
-```bash
-cai node declare-output <nodeId> --sample-file shape.json
-```
+**Three scopes.** A node run isolates the node's own configuration and does not execute wired upstream nodes; `runScope.endToEndValidationRequired` is computed from the wiring before the run and says that upstream-derived values need a containing-flow check, while `resolvedConfigs` shows what they actually were. A flow run executes the wiring and proves `inputs.<name>` expressions and the return contract. A discovery run creates a scratch node from a component that is not in the graph inside a reusable scratch flow, executes it and deletes the node (the flow stays), only to learn what it returns; it types nothing in the real flow.
 
-MCP: call `node_output_type_declare` with parsed JSON in `sample`; the server cannot read `shape.json`.
+**Inputs are keyed by ID.** `run inputs` lists the exact input IDs a node or flow reads. A flow lists every declared input with a `used` flag: supply the used ones (an omitted used input falls back to its saved test value), and values for unused inputs are accepted and ignored. An isolated node run must receive every referenced `flowInputs[].id` or it fails before executing with `ISOLATED_FLOW_CONTEXT_REQUIRED`. Explicit `null`, `""`, `false` and `0` are supplied values; dates are plain ISO-8601 text.
 
-— where `shape.json` is a representative response object from the provider's API reference. The contract is marked `declared (unverified)`; the first real completed run verifies and upgrades it automatically. State clearly that it is unverified until then, and make the first live run the explicit verification step. Never silently skip the question and never present an unrun action as verified.
+**The evidence.** `status` and `errorMessage`; `skipReason` (`only_when_false`, `upstream_skipped`); `runScope`; `resolvedConfigs`, where a null entry on a dynamic prop that the contract did not intend is a silent expression failure on an otherwise green run, and each entry's `resolutionWarnings` (an explicit `[]` means the resolver reported nothing; the value still has to match the contract); the output shape and values; and the adoption result, `outputTypeAdoption` on a node run or `outputTypeAdoptions` on a flow run, where `adopted` or `already_typed` lets the node status converge, `no_observed_output` means the run returned no reusable shape, and each entry's `adoptedNodeIds` must be empty or name only its own node.
 
-## First live run is part of development
+**Outcomes.** A run ends `completed`, `completed_with_error` (a handled error path, the expected result when testing continue-on-error), `failed` or `cancelled`; it can also stop `paused` waiting on something, or still be running when the wait ends. The CLI polls until a terminal status, a pause or its `--timeout` (milliseconds); a non-success result exits non-zero and carries the execution ID and last snapshot in `error.detail`. A running or paused status means inspect that execution later, never dispatch the run again.
 
-After publishing, run the published version directly under supervision:
+## Rules
 
-```bash
-cai run flow <flowId> --inputs values.json --target live --confirm-live --json
-```
+1. **Mitigate, do not refuse.** Before a send, delete, charge or people-affecting run, say what will really happen and agree a safe target: the user's own address or channel, a record created for the test, a person the user names. Reuse authorization the task already gave; ask only for what it did not cover.
+2. **A declined run is declared, not skipped.** Declare the output from the provider's documented response, say it is unverified, and name the first real run as the verification step.
+3. **Smallest scope first, then the containing flow.** A node run proves configuration; only a flow run proves upstream-derived values and the return value.
+4. **Green is not proof, and red is not always failure.** Read resolved configs, outputs, ports and skips; a `completed` run with empty or null output is a failure until the values are read and explained, a null dynamic config the contract did not intend is a failure even when the status is green, and a run that matched the scenario's expected status, outputs and effects passed even when that status is `completed_with_error`. `0` and `false` are values.
+5. **Find the first divergence, not the last error.** Walk the execution tree, classify each node as completed, failed, skipped on purpose, skipped unexpectedly or absent; later failures are usually consequences.
+6. **Verify the effect where it lives.** Data writes: query the same store. Files: open the artifact. Provider actions: the provider's result, not the execution ID.
+7. **Never let a stalled run become a duplicate.** Inspect the returned execution; rerun only after it reached a terminal state and the cause is understood.
+8. **Adoption stays on the tested node.** Stop if `adoptedNodeIds` names a sibling, and re-read `node status` and downstream expression contexts after a type is adopted.
 
-MCP: pass parsed values in `inputs` and set `waitSeconds` on `run_flow`.
+## Recipes
 
-This command fires external actions and spends usage. For risky sends, build the safe-audience harness: branch on the `isLiveVersion` data source with If/Else — the false branch targets the developer (own email/channel), the true branch targets the real audience. Use this direct live run for explicit verification; do not wait for a real trigger event.
-
-## Prepare exact run inputs
+### Prepare inputs and run
 
 ```bash
 cai run inputs <nodeId> --json
 cai run inputs <flowId> --flow --json
+cai run node <nodeId> --inputs <values.json> --json
+cai run flow <flowId> --inputs <values.json> --json
 ```
 
-Use returned opaque input IDs. Flow mode lists EVERY declared input with a `used` flag: supply the used ones (an unsupplied used input falls back to its saved test value), while values keyed to unused inputs are accepted and ignored. The input object can be a flat map; the CLI may load it from a file:
+`--inputs` takes inline JSON, a file path or `-` for stdin; the value is a flat map of input ID to value. `--timeout <ms>` bounds the wait.
 
-```json
-{
-  "<inputId>": "representative value"
-}
-```
-
-Do not key test values by a guessed display name.
-
-Before an isolated node run, `cai run inputs <nodeId> --json` calls `get_node_test_inputs`; supply every referenced `flowInputs[].id` explicitly. Missing one fails before execution with `ISOLATED_FLOW_CONTEXT_REQUIRED`. Explicit `null`, `""`, `false`, and `0` are valid supplied values.
-
-Date-typed inputs take plain ISO-8601 strings, e.g. `"2026-06-05"` or `"2026-06-05T12:30:00Z"` (no double-encoding, no epoch strings).
-
-## Run the smallest useful scope
-
-Start with a changed node, then run its containing flow:
+### Declare an output the user will not run yet
 
 ```bash
-cai run node <nodeId> --inputs values.json --json
-cai run flow <flowId> --inputs values.json --json
+cai node declare-output <nodeId> --sample-file <shape.json>
 ```
 
-MCP: pass parsed values in `inputs` and set `waitSeconds` on `run_node` or `run_flow`.
+The sample is a representative response object (or a non-empty array of them) taken from the provider's API reference.
 
-`run node` is deliberately isolated: it does not execute wired upstream nodes. Read its `runScope`. If `endToEndValidationRequired` is true, values derived from upstream can be empty even when the selected node is green; do not accept that run as expression proof. `run flow` is the end-to-end check that executes upstream wiring.
+### Discover what a component returns
 
-The CLI waits for a terminal execution state by default. MCP polling is bounded by `waitSeconds` and may return an unfinished execution ID. Capture `workflowExecutionId` and `nodeExecutionId` from the result.
+```bash
+cai run discover --node <nodeSlug> --key <componentKey> --connection <connectionId|none> --props '<json>' --json
+```
 
-For every node test, inspect:
+`--connection` is required (`none` for a component without auth); `--enable <prop>` enables optional props first; `--keep` retains the scratch node only when the user wants it.
+Discovery calls the real action and spends usage. Never probe a destructive action just to learn its output: agree a safe target or declare the shape instead. Prefer testing a configured node: discovery returns `observedOutputType`, `nodeExecution`, `workflowExecutionId`, `scratchFlowId` and `nodeDeleted`, the full execution stays readable by ID, and the real node in the flow still has to be typed by its own run or a declaration.
+With `--keep` the scratch node stays as well.
 
-- `status` and `errorMessage`
-- `skipReason`
-- `runScope`, especially `upstreamNodesExecuted` and `endToEndValidationRequired`
-- `resolvedConfigs`
-- `resolvedConfigs[].resolutionWarnings`: trust every structured entry; `[]` is authoritatively clean. Also read any transport warnings; CLI runs may mirror them on stderr.
-- `outputTypeAdoption`: the server verifies the exact completed `nodeExecutionId`, derives its persisted output shape, and updates only that non-static node. `adopted` or `already_typed` lets the next `node status` converge; `no_observed_output` means the representative run returned no reusable shape. `adoptedNodeIds` must be empty or contain only the tested node; stop if it names a sibling.
-- output shape and values
+### Verify the published version
 
-A dynamic prop with a null/empty resolved config is a failure even when status is green. `0` and `false` are valid resolved values.
+```bash
+cai run flow <flowId> --inputs <values.json> --target live --confirm-live --json
+```
 
-## Debug from the execution tree
+When the user authorized live verification and named a safe target, run the published flow once under supervision instead of waiting for a real trigger event. It fires real actions and spends usage. Where the design calls for it, a safe-audience harness (an If/Else on `isLiveVersion` whose false branch targets the developer and whose true branch targets the real audience) protects development runs; the live run is still a real send, and adding that harness is a design change to agree, not a test step.
+
+### Read the execution
 
 ```bash
 cai exec tree <workflowExecutionId> --limit 50 --json
@@ -96,38 +87,12 @@ cai exec flow <flowExecutionId> --json
 cai exec node <nodeExecutionId> --full --json
 ```
 
-Page with the returned `nextCursor` via `--cursor`; narrow large runs with repeatable `--status`
-or `--flow <flowId>`. Use the tree to locate the first unexpected status. Use the full node
-execution to inspect its status, resolved configuration, and untruncated output. Read
-[references/debugging.md](references/debugging.md) for the fault-isolation order.
+Page the tree with the returned `nextCursor` (`--cursor`) and narrow a large run with repeatable `--status` or an exact `--flow <flowId>`. The tree locates the first unexpected status; the full node execution holds the resolved configuration and the untruncated output. Read [references/debugging.md](references/debugging.md) for the fault-isolation order and the symptom table.
 
-## Output discovery
+## Verify
 
-Prefer a configured node test. If a component is not yet in the graph, `run discover` creates a scratch node and deletes it after execution:
+The run exercised the changed path with credible values; the first unexpected node, if any, was identified from the tree; every dynamic config resolved to the intended value and `resolutionWarnings` were read; the output shape and values match what downstream expects; skips are intentional and error paths accounted for; a flow run reached the scenario's expected status, outputs and effects after isolated fixes; the stored or external effect was checked where it lives; and any declared contract is still marked unverified in the report.
 
-```bash
-cai run discover \
-  --node <nodeSlug> \
-  --key <nodeKey> \
-  --connection <connectionId|none> \
-  --props '<json>' \
-  --json
-```
+## Report
 
-MCP: `run_discover` always removes the scratch graph and exposes neither `keep` nor `waitSeconds`.
-
-This calls the real third-party action and spends usage. For a destructive action, do not probe merely to learn its output — first ask the user for a safe target (see "Consequential actions" above); if they decline, declare the expected shape instead. On CLI, use `--keep` only when the user wants the scratch node retained.
-
-After successful output discovery, re-read `cai node status` and downstream `cai expr context`; verify the adopted output type is concrete.
-
-## Completion gate
-
-- CLI scripts may gate on `cai workflow validate` exiting 1; MCP callers inspect `valid` and `errors`.
-- The test exercised the changed path with credible values.
-- The first unexpected node, if any, was identified rather than inferred from the final error.
-- All dynamic configs resolved to intended values.
-- Output fields and types match downstream expectations.
-- Branch skips are intentional and error paths are accounted for.
-- A full flow test passes after isolated node fixes.
-- `completed` with an empty or null output is treated as a failure until the output values are read and explained — an empty result usually means a mis-mapped input or an expression that null-propagated silently.
-- The final report cites execution IDs and distinguishes development testing from live verification.
+What ran and on which version, the execution IDs, what each run proved, what is declared but unverified, and what remains untested and why.

@@ -1,173 +1,104 @@
 ---
 name: controllerai-expressions
-description: Author, validate, persist, and debug Controller AI expressions for node props and conditions. Use when a value comes from a flow input, upstream node, loop item, workflow data, constant, calculation, template, or boolean rule, or when an expression compiles but resolves to null or the wrong input.
+description: Author, validate, persist, and debug Controller AI expressions for node props and conditions. Use when a value comes from a flow input, an upstream node, a loop item, workflow data, a constant, a calculation, a template or a boolean rule, and when an expression compiles but resolves to null or the wrong input.
 ---
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 
-# Controller AI expressions
+# Expressions
 
-The `cai ...` examples are canonical grammar. Use the transport selected in `controllerai-start` and its MCP tool map; never mix transports in one task.
+## Use this when
 
-Controller AI uses a restricted JavaScript-like authoring language that is compiled into the workflow engine's expression AST. It is not general JavaScript. Discover the real scope and compile before every write.
+- A node prop or condition needs a dynamic value: a flow input, a wired upstream output, the current loop item, workflow records, a date calculation, a text template, a boolean guard.
+- An expression compiles but the run shows null, an empty value, or the wrong source.
 
-## Rules that break tasks when skipped
+Node discovery, connections and static props belong to `controllerai-node-config`; Router, If/Else and loop structure to `controllerai-flow-control`; execution evidence to `controllerai-runs`.
 
-- Wire first; refresh context after structural changes. See Required write loop.
-- `--value` is static; dynamic values use `--js`. See Typed values and templates.
-- Copy current bindings, not labels or stale names. See Read the destination's exact scope.
-- Never use raw ASTs, general JavaScript, or private APIs. See Use only advertised syntax.
-- Keep ternaries in the destination type. See Typed values and templates.
-- Prove resolution in a containing-flow run. See Verify runtime resolution.
+## How it works
 
-Data types are the TypeScript types of workflows: every expression is typed, and an expression can only be written against a known type. Integration types describe what integration actions output (resolved by a successful dev run); `custom.*` types describe shapes for data-store records and AI-node structured outputs. Two wrappers matter: `dataRecord.custom.x` means "an actual stored record of that shape" — the fields plus record identity (`id`, `createdAt`) — while bare `custom.x` is just data in that shape; `list.` prefixes a list of any type. When an expression cannot be authored, the cause is usually a missing type — resolve the upstream node's output type first, don't guess field paths.
+Expressions are written in a restricted JavaScript-like language and compiled into the engine's expression tree. It is not JavaScript: no loops, assignments, `new`, regular expressions, optional chaining, object literals (the `{ ignoreEmptyConstraints: true }` filter options object is the one accepted object) or library methods beyond what the compiler catalog advertises. A program is optional `const` declarations followed by one final expression.
 
-`.every()` accepts the same multi-condition predicates as `.filter()` and compiles to `:all match`. A removed schema field makes `.every()` false but is dropped by `.filter()`. Comparator semantics govern missing, null, and unparseable values; guards must require presence explicitly.
+**Everything is typed.** An expression can only be written against a known type. An integration node's output type is usually learned from a representative development run, or from a supported output selector or a declared provider sample, and `node status` says which route applies; `custom.*` types describe data-store records and AI structured outputs; `dataRecord.custom.x` is a stored record of that shape with its identity (`id`, `createdAt`, `updatedAt`), while bare `custom.x` is the shape alone; `list.` prefixes a list of any type. When an expression cannot be authored, the cause is usually a missing upstream type.
 
-## How empty values evaluate
+**Scope** comes from the destination's expression context: `flow.<name>` is a flow input, `inputs.<name>` a wired node input (usually already unwrapped), `item` the current loop item where the context exposes it, `workflowData("custom.type")` the records of an active collection on the current rail, and `now` and `isLiveVersion` constants. Bindings are display-derived and de-duplicated by the context; display labels and old spellings are not bindings.
 
-An empty input evaluates to its typed empty form: `""` for TEXT, null/undefined for objects. Both cases below fail silently:
+**Empty values.** An omitted input arrives in its typed empty form: `""` for text, null for objects, and it is compared like any other value: `=== ""` matches only rows whose field is empty, `!==` passes every other row including rows with a missing value, `includes("")` matches every text row, and a negative membership check against a missing list passes everything. An omitted optional input therefore does not close a filter by itself: equality usually returns nothing, a negation or containment returns everything, and an omitted lookup key can turn a create-if-missing step into a duplicate. With `ignoreEmptyConstraints` on, a constraint whose value is null, empty text or an empty list is skipped; `0`, `false`, whitespace and dates stay real constraints. `.every()` takes the same predicates as `.filter()` and compiles to a single-pass "all match"; a constraint on a field the item does not have compiles, makes `.every()` false and is dropped by `.filter()`, which then matches every item. Predicates compare a field of the item, so a list of numbers or text cannot be filtered by its values: count or classify primitives with a per-item loop that returns a flag, then sum the flags. Comparators decide what missing, null or unparseable values do, and negative comparisons can pass rows with missing values, so a guard states presence explicitly.
 
-- **A filter compared with empty matches no records.** To skip an omitted constraint, opt into `ignoreEmptyConstraints`; see [references/dsl-and-recipes.md](references/dsl-and-recipes.md).
-- **An omitted optional TEXT input arrives as `""`.** Equality then matches nothing and can make a create-if-missing step duplicate data.
+**Dates** travel as ISO-8601 text. A `date`-typed input or field takes date operations directly; text needs `.toDate()` first, and epoch text needs an explicit unit, `.toDate("epoch_seconds")` or `.toDate("epoch_millis")`. Format with Moment tokens such as `format("YYYY-MM-DD")`.
 
-When a run unexpectedly returns zero results, check the resolved configs for empty comparison values first (`cai exec node <nodeExecutionId> --full`).
+**Templates and ternaries.** A backtick template with `${...}` returns text; keep non-text values as direct typed expressions. A ternary keeps its type when both branches are numbers or both are booleans; any other pair renders as text, so give both branches the same type when a number or boolean is needed, and never quote or coerce a branch to hide a type mismatch.
 
-## Required write loop
+**Channels.** A literal value and an expression are stored on different channels; the setters pick the channel from the prop's metadata. On a value-channel text array, a scalar expression replaces the whole array with one dynamic element and a list expression is rejected; a static list is written as a literal array, and a list expression only where the prop exposes whole-array expression mode.
 
-### 1. Wire first
+## Rules
 
-An upstream output is available only after it is connected to the target node. If context lists it under `unwiredUpstreamOutputs`, connect it, then fetch context again.
+1. **Wire first, then read the context, then write.** An upstream output listed under `unwiredUpstreamOutputs` is discovery, not scope. Re-read the context after rewiring, renaming an input, changing a schema, changing a dynamic selector, or resolving an output type.
+2. **Copy bindings exactly.** Never derive one from a label, never add `.data` on your own, and when a diagnostic advertises a typeable accessor, use it. For duplicate names, use the de-duplicated binding, input ID and source node the context gives.
+3. **Use only advertised operations.** Read the catalog for the type; never author a raw expression tree or probe a private API. When an idiom is rejected, use the advertised alternative, or express the logic through routing, typed inputs or a native action.
+4. **A literal is a literal.** `flow.name`, `{{name}}` and `${name}` inside a literal stay text. Dynamic values go through the expression setter.
+5. **Preserve `0` and `false`.** Fallbacks are same-type literals (`flow.count ?? 0`, `flow.enabled ?? false`) and never swallow a real zero or false.
+6. **Optional filters are a decision, not a default.** An omitted value is a real comparison, not a skipped constraint; turn on `ignoreEmptyConstraints` only when omitting that constraint is what the user wants, and test both the supplied and the omitted case.
+7. **Compiler success proves syntax and types, not the source.** When names are ambiguous, check the source node and input IDs, then look at runtime values.
+8. **An expression that reads `inputs.<name>` is verified only by running the containing flow.** A node run never executes upstream nodes.
+9. **Empty results need a reason.** An intentional empty (a closed filter, an absent optional) is valid; an unexpected null or partial value in `resolvedConfigs` is a failure to trace, not something to fix by rewriting valid syntax.
+
+## Recipes
+
+### Discover the scope and the operations
+
+```bash
+cai expr context <nodeId> --prop <propName> --json
+cai expr ops --workflow <workflowId> --type <text|number|date|list|boolean|file|custom> --json
+```
+
+The catalog is read from the workflow's expression context, so the workflow needs at least one node, and an existing pin (`cai use` or `CAI_WORKFLOW`) can replace `--workflow`.
+
+If the source is not wired yet:
 
 ```bash
 cai node connect --flow <flowId> --from <sourceNodeId> --to <targetNodeId> --json
 ```
 
-Use `cai branch connect` for Router or If/Else outputs.
+Router and If/Else outputs connect through `cai branch connect`.
 
-### 2. Read the destination's exact scope
-
-```bash
-cai expr context <nodeId> --prop <propName> --json
-```
-
-Copy binding and field names exactly. Important sources include:
-
-- `flow.<name>`: flow input
-- `inputs.<name>`: wired node input; the payload is usually already unwrapped
-- `item`: injected current item, only where context exposes it
-- `workflowData("custom.type")`: records from an active workflow collection
-- `now`, `isLiveVersion`: constants shown by context
-
-Do not derive a binding from a display label. Context flags duplicate display names and supplies the de-duplicated JS name, input ID, and source node.
-
-When compilation reports an unknown field, copy a typeable display-derived accessor it advertises; field IDs appear second for disambiguation.
-
-### 3. Use only advertised syntax
-
-Get the current operation catalog when needed:
-
-```bash
-cai expr ops --workflow <workflowId> --type <text|number|date|list|boolean|file|custom> --json
-```
-
-The catalog is workflow-scoped because it is read from expression context. On CLI, an existing `cai use` or `CAI_WORKFLOW` selection can replace the explicit flag; MCP `expr_operation_list` always requires `workflowId`.
-
-Keep the program to optional `const` declarations followed by one final expression. Do not submit raw AST JSON or probe private APIs. Do not use loops, assignments, `new`, regular expressions, optional chaining, arbitrary library methods, or object construction unless the compiler catalog supports them.
-
-Date values are ISO-8601 strings on the wire (`"2026-06-05"` or `"2026-06-05T12:30:00Z"`). A `date`-typed flow input or field is used directly with date operations; only `text` values need `.toDate()` first. For epoch text, pass the unit literal explicitly: `flow.timestamp.toDate("epoch_seconds")` or `flow.timestamp.toDate("epoch_millis")`. The ops table renders that argument generically; never guess the unit from digit count.
-
-#### Typed values and templates
-
-`--value` stores a literal, so `flow.name`, `{inputs.Name}`, `{{name}}`, and `${name}` stay static. `--js` and `--js-file` compile typed expressions. `${...}` interpolates only inside a backtick template expression, which returns text. Keep non-text values as direct typed expressions.
-
-Ternaries preserve compatible scalar branch types: number and boolean branches stay number and boolean. A different inferred destination type means the write is incomplete. Report the compiler error; do not quote or coerce branches to text.
-
-Read [references/dsl-and-recipes.md](references/dsl-and-recipes.md) for canonical patterns.
-
-### 4. Compile, write, and read back
-
-For a node prop, prefer:
-
-```bash
-cai expr set <nodeId> --prop <propName> --js '<expression>' --json
-```
-
-MCP: use `node_prop_set` with `js`; it merges `cai expr set` with `cai node set`.
-
-For multiline expressions or shell-sensitive templates on CLI, put the exact source in a UTF-8 file and use `--js-file <path>`. Use `--js-file -` to read stdin. It is mutually exclusive with inline `--js` and is available on `expr validate/set`, `node set/only-when`, and `branch add/update`.
-
-```bash
-cai expr set <nodeId> --prop <propName> --js-file expression.js --json
-```
-
-MCP: pass the file contents inline as `js`; the hosted process does not read the local path or stdin.
-
-This fetches target metadata, auto-enables a catalog-only optional target when needed, compiles before writing the value, persists to the correct channel, and verifies read-back. If validation or the value write then fails, the prop stays enabled; repair with `cai node disable-prop <nodeId> --prop <propName>`.
-
-MCP: repair with `node_optional_prop_set` and `enabled: false`.
-
-Array channels are not interchangeable. On a value-channel `SHORT_TEXT_ARRAY`, a scalar expression replaces the whole array with one dynamic element; it does not append. List-typed expressions on value-channel array props are rejected. Use `cai node set <nodeId> --prop <propName> --value '["a","b"]'` for a static list, or use a list-typed expression only where prop metadata exposes whole-array expression mode.
-
-For a side-effect-free check:
+### Validate, write, read back
 
 ```bash
 cai expr validate <nodeId> --prop <propName> --js '<expression>' --json
+cai expr set <nodeId> --prop <propName> --js '<expression>' --json
+cai expr decompile <nodeId> --prop <propName> --json
 ```
 
-For conditions:
+The setter fetches the prop's metadata, enables a catalog-only optional prop when needed, compiles, writes the right channel and verifies the readback. If the write fails after enabling, the prop stays enabled: disable it with `cai node disable-prop <nodeId> --prop <propName>` and re-read. Decompile returns the stored source and channel, not a type: validate the decompiled source against the current destination to confirm the type still holds.
+
+For a multiline or shell-sensitive expression, keep the exact UTF-8 source in a file and pass `--js-file <path>` (or `--js-file -` for stdin) instead of `--js`; `expr validate`, `expr set`, `node set`, `node only-when`, `branch add` and `branch update` all accept it.
+
+### Conditions
 
 ```bash
 cai expr validate <nodeId> --mode onlyWhen --js '<boolean expression>' --json
 cai node only-when <nodeId> --js '<boolean expression>' --json
-```
-
-Node `only-when` takes one restricted boolean through `--js` or `--js-file`, or grouped conditions through `--groups-json '[["a","b"],["c"]]'` (inner arrays are AND, outer rows are OR). Root scalar `&&` or `||` inside one expression is unsupported; use `--groups-json` for compound guards. Branch add/update accepts `string[][]`: outer rows are OR, inner entries are AND, and each entry compiles separately.
-
-```bash
+cai node only-when <nodeId> --groups-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
 cai branch update <nodeId> --route <routeId> --condition-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
 ```
 
-Use grouping only when branch semantics fit. For a compound node-only guard, use `--groups-json`; do not weaken the rule or probe private APIs. To make missing numeric input fail `< 5`, use `(flow.unitsLeft ?? 5) < 5`.
+A node guard takes one boolean expression, or groups where each inner list is AND and the outer list is OR; a root `&&` or `||` inside one expression is not supported, so compound guards use groups. Branch conditions use the same grouped shape, each string compiled separately. Make a missing number fail a comparison with a same-type boundary: `(flow.unitsLeft ?? 5) < 5`.
 
-Router and If/Else conditions are written with `cai branch add` or `cai branch update` after the same context/validation discipline.
-
-### 5. Verify runtime resolution
+### Prove the value at runtime
 
 ```bash
-cai expr decompile <nodeId> --prop <propName> --json
 cai run node <nodeId> --inputs <values.json> --json
-```
-
-MCP: `run_node` takes the parsed `inputs` object and `waitSeconds` (default 60, max 120).
-
-Use `run node` to isolate the destination's own configuration. It never executes wired upstream nodes. If the expression consumes `inputs.<name>`, also run its containing flow:
-
-```bash
 cai run flow <flowId> --inputs <values.json> --json
+cai exec node <nodeExecutionId> --full --json
 ```
 
-MCP: `run_flow` takes the parsed `inputs` object and `waitSeconds` (default 60, max 120).
+The node run isolates the destination's own configuration. The flow run proves an upstream-derived value. Inspect `runScope` and `resolvedConfigs`; when a search unexpectedly returns nothing, look at the resolved comparison values first.
 
-Inspect `runScope` and `resolvedConfigs` in the run result. A null or missing dynamic config is an expression failure, not success; a partially empty value is equally suspect. Only the full flow run proves an upstream-derived value. Use `cai exec node <nodeExecutionId> --full --json` to inspect the final status, resolved configs, and untruncated output.
+## Verify
 
-## Hard rules
+The current context shows the intended source IDs and bindings; the decompiled source validates against the current destination; the run's `resolvedConfigs` hold the intended value, with intentional empties explained; the edge cases the task implies were exercised: omitted input, `0`, `false`, empty text or list, missing record.
 
-- Never guess a binding, field, method, or target type.
-- Never author against an unwired output.
-- Never add `.data` automatically. Use the exact path shown by context.
-- Re-read context after rewiring, renaming inputs, changing schemas, changing dynamic selectors, or resolving an output type.
-- Preserve `0` and `false`; they are values, not missing data.
-- Optional filters need an explicit behavior decision. Do not silently change fail-closed filtering to match-all.
-- A compiler success proves syntax and types, not correct source selection. Verify the source node/input IDs when names are ambiguous and inspect runtime values.
+## Report
 
-## Before you finish
+Which values are dynamic and what they read from, any optional-filter or fallback decision you made, and what the run showed.
 
-```bash
-cai expr context <nodeId> --prop <propName> --json
-cai expr validate <nodeId> --prop <propName> --js '<expression>' --json
-cai expr decompile <nodeId> --prop <propName> --json
-cai run flow <flowId> --inputs <values.json> --json
-```
-
-- Context must show current source IDs and bindings.
-- Validation and decompile must agree on source and type.
-- The flow run must show the intended value in `runScope` and `resolvedConfigs`.
+Read [references/dsl-and-recipes.md](references/dsl-and-recipes.md) for the canonical patterns: templates, prefix tests, HTTP JSON bodies, fallbacks, dates, workflow records, optional filters, loop items and outputs, and the troubleshooting order.

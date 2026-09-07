@@ -4,45 +4,43 @@
 
 | Asset | Workflow publish |
 | --- | --- |
-| Graph, props, expressions, schemas | Promoted to live |
-| Development records | Not copied |
-| Existing live records | Remain on live |
+| Graph, props, expressions, schemas | Promoted to live; live collections are created or synced |
+| Development records | Never copied |
+| Existing live records | Untouched |
 
-Use `cai data copy-to-live --type <custom.type>` only for an intentional data promotion.
+Records reach live only through an explicit copy-to-live, a live import, a live write, or the published workflow's own runs.
 
-MCP: `data_copy_to_live` requires the explicit acknowledgement `env: live`.
+## Safe schema change
 
-## Safe schema update
+1. Read the current schema and note every field ID and type.
+2. Search the workflow's expressions and node props for references to the fields you will change.
+3. Prepare the complete replacement field list; the update replaces the list.
+4. Name the fields that will be removed, renamed or retyped, and what their stored values will do: hidden until the same ID returns, null until the same type returns.
+5. Update, then read the persisted echo and compare it with the intent.
+6. Re-read the expression contexts that referenced the schema and rerun the stateful flows.
 
-1. `cai schema get <type> --json`
-2. Search workflow expressions and node props that reference its fields.
-3. Prepare the complete replacement field list.
-4. Identify dropped/renamed/type-changed fields and their record impact.
-5. Run `cai schema update`.
-6. Read schema, collections, and affected expression contexts again.
-7. Rerun stateful flows.
-
-Field IDs are contracts. Prefer keeping an ID stable and changing only its display label.
+Prefer a display change over an ID change. A new field ID is a new field: the old values stay under the old ID.
 
 ## Destructive operations
 
-- `data delete` soft-deletes one record.
-- `data delete-many --all --yes` is broad and REST-backed on either rail. With `--env live`, the deletion immediately changes what the published workflow reads.
-- `schema delete` removes access to the whole collection and breaks its type references.
-- CSV `--mode commit` appends rows on the selected rail; a live commit is immediately visible to the published workflow. `--mode dryRun` writes nothing on either rail.
-- `copy-to-live` changes production data.
+- A record delete is a soft delete with no undo.
+- A bulk delete of every record removes the whole collection's rows on the chosen store; on live the published workflow sees it immediately.
+- An update overwrites the stored value; on the single Update node every enabled field that resolves to a value is written, including one that resolves to empty text or null.
+- A CSV commit appends the valid rows and skips the invalid ones; re-running a commit appends again.
+- Deleting a type deactivates its collection (re-adding the key reactivates it) and removes the fields on other types that referenced it; re-adding the type does not restore those fields, restoring an earlier workflow state does.
+- Copy-to-live upserts development rows into production by record key: live-only rows stay, matching keys are overwritten, deleted matching keys are restored.
 
-Resolve exact workflow, environment, type, and record targets before these actions. Do not use a broad deletion to repair a schema mistake.
+Resolve the exact workflow, store, type and records before any of these. A schema mistake is fixed by restoring the key or the field ID, never by deleting data.
 
-## Dev/live diagnosis
+## Development versus live diagnosis
 
-If a manual test passes but a trigger does not:
+If a manual run passes but a trigger or agent tool does not, compare the two stores:
 
 ```bash
 cai data collections --env dev --json
 cai data collections --env live --json
-cai data query --type <type> --env dev --json
-cai data query --type <type> --env live --json
+cai data query --type custom.<name> --env dev --json
+cai data query --type custom.<name> --env live --json
 ```
 
-Different row counts are expected until data is intentionally copied or written on both rails.
+No live collections usually means no publish since a store-eligible schema existed. An empty live collection with a populated development one usually means the data was never promoted or was cleared since. Confirm with publish status, the live schema and record history; different counts are normal until data is intentionally written on both stores.
