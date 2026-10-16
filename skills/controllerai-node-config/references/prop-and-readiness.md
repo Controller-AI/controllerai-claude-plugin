@@ -1,7 +1,7 @@
 <!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 # Prop and readiness reference
 
-## What `cai node status` reports
+## What `node_status` reports
 
 - `missingConnection`: an authenticated component has no account bound.
 - `missingRequiredProps`: materialized required props without a value.
@@ -12,19 +12,11 @@
 - `readyForExpressions`: connection and required/reload props complete. The source still has to be wired before its binding appears in expression context.
 - `readyForRun`: runnable; the run may be what discovers the output type.
 - `readyForDownstreamExpressions`: runnable and the process output type is concrete enough for downstream field bindings. Require this, not `readyForRun`, before binding downstream fields.
-- `next`: diagnostic guidance for the next step, phrased as a CLI command; apply it through the current surface and its policy.
+- `next`: diagnostic guidance for the next step, phrased as a command line; apply it with the matching typed tool.
 
 ## Prop channels
 
-`cai node set` picks the channel from live metadata; the readback shows it as a decompiled view:
-
-| Intent | Input | Readback view |
-| --- | --- | --- |
-| Static text, JSON text, scalar, or (where the prop allows it) object or list | `--value` | `value` |
-| Dynamic text, JSON text or custom data | `--js` | `valueJs` |
-| Dynamic non-text prop in expression mode | `--js` | `expressionValueJs` |
-
-A custom-data prop takes only a string, a finite number or a boolean as a literal. A compiled literal may have no decompiled view at all.
+`node_prop_set` picks the channel from live metadata: `value` (or `valueJson` for JSON text kept verbatim) is a literal; `js` is an expression, read back as `valueJs` for text, JSON text and custom data, or `expressionValueJs` for a non-text prop in expression mode; `rawExpressionJson` round-trips a compiled tree. Pass exactly one of the four.
 
 Never force a channel through internal fields. The expression setters compile before writing (a raw tree is validated by the backend), and every setter verifies the actual channel in the readback.
 
@@ -40,12 +32,7 @@ Older backends and responses without a dependency catalog omit these fields; abs
 
 Pass the value and the label from the same live option. Many providers search labels rather than opaque IDs, so a copied ID without its label may be impossible to re-verify. Multi-select takes an ordered array of values and an aligned array of labels; the readback shows `{value, label}` records.
 
-```bash
-cai node options <nodeId> --prop <name> --query "<specific search>" --json
-cai node options <nodeId> --prop <name> --prev-context '<context JSON>' --json
-cai node options <nodeId> --prop <name> --for '<selector>=<value>' --for '<other>=true' --json
-cai node set <nodeId> --prop <name> --value '<option.value>' --label '<option.label>' --json
-```
+`node_prop_options` takes `query`, an opaque `prevContext` from the previous page, and `for` as an array of `"<prop>=<value>"` overrides for a read-only preview under uncommitted earlier values; `node_prop_set` takes the chosen `value` (or an array of values) and `label` as an array of the matching labels.
 
 ## Reload selectors
 
@@ -59,4 +46,4 @@ For a component whose dependent schema exists only after a concrete selection: s
 
 Resolve an unresolved output by setting the component's supported output or data-type selector, by running the configured node with representative inputs, or by declaring a documented provider sample as unverified. A discovery run (`controllerai-runs`) probes a component that is not in the graph on a scratch node: it deletes that node afterwards, keeps the scratch flow for reuse, and never types a node in the real flow.
 
-A completed run passes its exact node-execution ID back for ownership, workflow, node, component-snapshot and terminal-state checks, then the persisted output shape is adopted for that non-static node only. Read `outputTypeAdoption` (or `outputTypeAdoptions`) in the run result: `no_observed_output` means the run produced no reusable output, which is expected for a sink or control node and, for a data-producing action, a reason to rerun with representative data only when a downstream binding needs the type; `error` means stop and surface it. After adoption, re-read `node status` and the expression context. An example response alone never establishes a type.
+A completed run passes its exact node-execution ID back for ownership, workflow, node, component-snapshot and terminal-state checks, then the persisted output shape is adopted for that non-static node only. Read `outputTypeAdoption` (or `outputTypeAdoptions`) in the run result: `no_observed_output` means the run produced no reusable output, which is expected for a sink or control node and, for a data-producing action, a reason to rerun with representative data only when a downstream binding needs the type; `error` means stop and surface it. After adoption, re-read `node_status` and the expression context. An example response alone never establishes a type.

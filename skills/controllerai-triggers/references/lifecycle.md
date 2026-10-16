@@ -25,7 +25,7 @@ Skipping capture or selection leaves the trigger output untyped. Skipping the ma
 | ID | Used by |
 | --- | --- |
 | Canvas `triggerId` | get, rename, set-enabled, delete, test-events |
-| Numeric `backendTriggerId` | captured events, replay (`--trigger`) |
+| Numeric `backendTriggerId` | captured events, replay (passed as `triggerId`) |
 | `triggerNodeId` | select-event |
 | `runSubflowNodeId` | the mapping props, one per flow input |
 | Captured `eventId` | event read, select-event, replay |
@@ -34,12 +34,12 @@ Copy them from the responses. A replaced trigger has new IDs and possibly a new 
 
 ## Switches and acknowledgements
 
-| Switch | Flags | Meaning |
+| Switch | Tool and parameters | Meaning |
 | --- | --- | --- |
-| Definition state | `set-enabled --enable` / `--disable` | Whether the trigger starts its flow; development edit until published |
-| Ambient development dispatch | `test-events --allow --acknowledge-dual-run` / `--disallow` | Real events also execute the development canvas; sticky permission bit, survives disable |
-| Replay rail | `replay --target dev` / `--target live --confirm-live` | Which version one captured event executes |
-| Publish while armed | `workflow publish --acknowledge-dual-dispatch` | User's informed acceptance of double runs and double billing |
+| Definition state | `trigger_set_enabled` with `enabled: true|false` | Whether the trigger starts its flow; development edit until published |
+| Ambient development dispatch | `trigger_test_events_set` with `allowed: true, acknowledgeDualRun: true` / `allowed: false` | Real events also execute the development canvas; sticky permission bit, survives disable |
+| Replay rail | `trigger_replay` with `target: "dev"` / `target: "live", confirmLive: true` | Which version one captured event executes |
+| Publish while armed | `workflow_publish` with `acknowledgeDualDispatch: true` | User's informed acceptance of double runs and double billing |
 
 Each acknowledgement belongs to exactly one operation. Arming, publishing armed and live replay are three separate user decisions.
 

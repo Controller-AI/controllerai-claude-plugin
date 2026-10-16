@@ -28,13 +28,13 @@ Flow inputs and mapping expressions belong to `controllerai-expressions`; readin
 
 ## Rules
 
-1. **The start condition is the user's decision.** Create a source only with an explicit `--source-basis`: `explicit-in-request`, `user-answer`, or `inferred-from-existing-workflow` when preserving an existing source. The backend rejects an assumption; when the request does not say when the automation runs, ask one focused question first.
+1. **The start condition is the user's decision.** Create a source only with an explicit `sourceBasis`: `explicit-in-request`, `user-answer`, or `inferred-from-existing-workflow` when preserving an existing source. The backend rejects an assumption; when the request does not say when the automation runs, ask one focused question first.
 2. **Copy the exact `nodeSlug` and `eventKey`** from the search result; never derive an event key from its display name, because keys are opaque and display names collide across providers.
 3. **Ask for the timezone** when the user says "at 9am" without one, and never infer a production cadence from a test sample, whose timing is a test artifact.
 4. **Repair in place.** Keep the trigger's canvas ID and source when fixing its mapping or readiness; replacing a trigger changes captured IDs and may change a webhook URL, so replace only when the source itself must change, then recapture every ID.
-5. **Delete a retired start; disable a paused one.** "Stop starting itself", "retire" and "no longer" mean delete: a disabled trigger still exists and can be re-enabled, so it is not retired. Never delete the owning flow to remove a trigger (that destroys the graph and its callers), and pass exactly one state flag.
+5. **Delete a retired start; disable a paused one.** "Stop starting itself", "retire" and "no longer" mean delete: a disabled trigger still exists and can be re-enabled, so it is not retired. Never delete the owning flow to remove a trigger (that destroys the graph and its callers), and pass exactly one `enabled` value.
 6. **Arm ambient dispatch only on the user's decision, and disarm when setup ends**, including a failed or abandoned setup. Capture needs no arming; arming executes a half-built development flow on real traffic, so explain that before adding the acknowledgement. Keeping both rails armed is an uncommon, explicit user choice, never a default, and routine tests use replay.
-7. **Never mix the flag families or the acknowledgements.** `--enable|--disable`, `--allow|--disallow`, `--target dev|live`; `--acknowledge-dual-run` only while arming, `--acknowledge-dual-dispatch` only while publishing an armed trigger, `--confirm-live` only for one live replay. Never add an acknowledgement on your own initiative.
+7. **Never mix the state parameters or the acknowledgements.** `trigger_set_enabled.enabled`, `trigger_test_events_set.allowed`, `target: "dev" | "live"`; `acknowledgeDualRun` only while arming, `workflow_publish.acknowledgeDualDispatch` only while publishing an armed trigger, `confirmLive` only for one live replay. Never add an acknowledgement on your own initiative.
 8. **Audit every trigger before a publish**, not only the one you touched; users forget starts left enabled or armed in other flows.
 9. **A captured event is not a run.** For create or mapping work, verify received inputs, outputs and effects on a development replay; an event with no execution and an execution with empty inputs are different faults. Read-only diagnosis, a deletion (verified through the list and status) and a user-declined test need no replay.
 10. **A draft-only request stops at development proof**, and a delete-only or disable-only task needs no replay.
@@ -43,80 +43,64 @@ Flow inputs and mapping expressions belong to `controllerai-expressions`; readin
 
 ### Discover and resolve
 
-```bash
-cai trigger search "<event intent>" --json
-cai trigger search --node <nodeSlug> --events-per-node 50 --json
-cai trigger props --node <nodeSlug> --event <eventKey> --connection <connectionId> --json
-cai trigger options --node <nodeSlug> --event <eventKey> --prop <propName> --connection <connectionId> --configured '<configuredPropsJson>' --dynamic-props-id <dynamicPropsId> --query "<option label>" --json
-cai trigger props --node <nodeSlug> --event <eventKey> --connection <connectionId> --configured '<configuredPropsJson>' --dynamic-props-id <dynamicPropsId> --json
-```
+- `trigger_search` — `query`, `eventsPerNode`, `limit`, `node`, `workflowId`
+- `trigger_component_props` — `configured`, `connection`, `dynamicPropsId`, `event`, `node`, `workflowId`
+- `trigger_prop_options` — `configured`, `connection`, `dynamicPropsId`, `event`, `node`, `page`, `prevContext`, `prop`, `query`, `workflowId`
+- `trigger_component_props` — `configured`, `connection`, `dynamicPropsId`, `event`, `node`, `workflowId`
 
-Omit the connection for a source without auth. Copy the returned option `value`, not its `label`, into the configured props, then re-read the props until `readyForCreate` is true. Use `--page` with the returned context (`--prev-context`) when a search does not find the option. A missing connection is handled as in `controllerai-node-config`: `cai connection list --node <nodeSlug> --json`, then `cai connection connect <nodeSlug> --no-open`.
+Omit the connection for a source without auth. Copy the returned option `value`, not its `label`, into the configured props, then re-read the props until `readyForCreate` is true. `trigger_component_props` takes `node`, `event`, `connection`, `configured` (the object of values chosen so far) and `dynamicPropsId`; `trigger_prop_options` adds `prop`, `query`, or `page` with `prevContext` when a search does not find the option. A missing connection is handled as in `controllerai-node-config`: `connection_list`, then `connection_connect_url` shown as a link.
 
 ### Create and map
 
-```bash
-cai trigger create --flow <targetFlowId> --node <nodeSlug> --event <eventKey> --source-basis <basis> --connection <connectionId> --props '<json>' --dynamic-props-id <dynamicPropsId> --json
-cai trigger get <triggerId> --json
-```
+- `trigger_create` — `connection`, `dynamicPropsId`, `event`, `flow`, `node`, `props`, `sourceBasis`, `workflowId`
+- `trigger_get` — `triggerId`, `workflowId`
 
-Capture every returned ID (`triggerId`, `backendTriggerId`, `triggerNodeId`, `runSubflowNodeId`) plus the `webhookUrl` or `emailAddress` when the source has one, and follow `nextSteps` in order: declare the flow inputs, capture and select a sample, then bind one mapping prop per input on the run-subflow node from its re-read expression context. Read-back is `get`; there is no describe command.
+`trigger_create` takes `flow`, `node`, `event`, `sourceBasis`, `connection`, `props` and `dynamicPropsId`. Capture every returned ID (`triggerId`, `backendTriggerId`, `triggerNodeId`, `runSubflowNodeId`) plus the `webhookUrl` or `emailAddress` when the source has one, and follow `nextSteps` in order: declare the flow inputs, capture and select a sample, then bind one mapping prop per input on the run-subflow node from its re-read expression context. Read-back is `get`; there is no describe command.
 
 ### Capture and select a sample
 
-```bash
-cai trigger events --trigger <backendTriggerId> --json
-cai trigger event <eventId> --json
-cai trigger select-event --node <triggerNodeId> --event <eventId> --json
-```
+- `trigger_event_list` — `limit`, `triggerId`, `workflowId`
+- `trigger_event_get` — `eventId`, `workflowId`
+- `trigger_event_select` — `eventId`, `triggerNodeId`, `workflowId`
 
-A representative event has to reach the source: through the provider, the returned webhook URL or email address; never invent an endpoint. Inspect the payload before selecting it and re-read the run-subflow node's expression context after selecting.
+A representative event has to reach the source: through the provider, the returned webhook URL or email address; never invent an endpoint. Inspect the payload before selecting it and re-read the run-subflow node's expression context after selecting. `trigger_event_list` and `trigger_replay` take the numeric `backendTriggerId` as `triggerId` (a numeric string), unlike every other trigger tool.
 
 ### Arm ambient development dispatch (only on request)
 
-```bash
-cai trigger test-events <triggerId> --allow --acknowledge-dual-run --json
-cai trigger test-events <triggerId> --disallow --json
-```
+- `trigger_test_events_set` — `triggerId`, `acknowledgeDualRun`, `allowed`, `workflowId`
 
-Arming makes every real event also execute the development canvas while it is half built; use it only when the user wants that after hearing it, and disarm at the end of setup.
+Arming makes every real event also execute the development canvas while it is half built; use it only when the user wants that after hearing it, and disarm at the end of setup. `trigger_test_events_set` takes `allowed: true|false` and `acknowledgeDualRun: true` when arming.
 
 ### Pause, resume, retire
 
-```bash
-cai trigger set-enabled <triggerId> --enable --json
-cai trigger set-enabled <triggerId> --disable --json
-cai trigger delete <triggerId> --json
-```
+- `trigger_set_enabled` — `triggerId`, `enabled`, `workflowId`
+- `trigger_delete` — `triggerId`, `workflowId`
+
+`trigger_set_enabled` takes the canvas `triggerId` and `enabled: true|false`; `trigger_delete` has no confirmation parameter.
 
 ### Test, audit, publish
 
-```bash
-cai run flow <targetFlowId> --inputs <values.json> --json
-cai trigger replay --trigger <backendTriggerId> --event <eventId> --target dev --json
-cai exec tree <workflowExecutionId> --json
-cai trigger audit --json
-cai trigger list --json
-```
+- `run_flow` — `flowId`, `confirmLive`, `inputs`, `target`, `waitSeconds`, `workflowId`
+- `trigger_replay` — `confirmLive`, `eventId`, `payload`, `target`, `triggerId`, `workflowId`
+- `execution_tree` — `workflowExecutionId`, `cursor`, `flowId`, `limit`, `status`, `workflowId`
+- `trigger_audit` — `workflowId`
+- `trigger_list` — `workflowId`
 
-Run the target flow directly first, then replay one captured event through the development trigger path; a development replay never dispatches live but still calls real providers and spends usage. `--payload` replays a custom raw payload instead of `--event`. The audit reports coverage, armed development dispatch and double-run risk; the list and get reads show `devCanvasEnabled` at the top level and `deployment.liveCanvasEnabled`, `deployment.inLiveVersion`, `deployment.devDispatchArmed` and `deployment.dualDispatchLive` (live fields are null when no live canvas exists yet: never published, or this trigger added after the last publish). Publish through `controllerai-workflows` only for an authorized live change. A publish refused because a trigger is still armed is the designed backstop: disarm and republish; publishing armed needs the user's informed choice after hearing about double runs and double billing, and only then `cai workflow publish --acknowledge-dual-dispatch --json`.
+Run the target flow directly first, then replay one captured event through the development trigger path; a development replay never dispatches live but still calls real providers and spends usage. `trigger_replay` takes `target: "dev"` with `eventId` or a raw `payload`. The audit reports coverage, armed development dispatch and double-run risk; the list and get reads show `devCanvasEnabled` at the top level and `deployment.liveCanvasEnabled`, `deployment.inLiveVersion`, `deployment.devDispatchArmed` and `deployment.dualDispatchLive` (live fields are null when no live canvas exists yet: never published, or this trigger added after the last publish). Publish through `controllerai-workflows` only for an authorized live change. A publish refused because a trigger is still armed is the designed backstop: disarm and republish; publishing armed needs the user's informed choice after hearing about double runs and double billing, and only then `workflow_publish` with `acknowledgeDualDispatch: true`.
 
 ### Verify live
 
-```bash
-cai trigger replay --trigger <backendTriggerId> --event <eventId> --target live --confirm-live --json
-cai exec tree <workflowExecutionId> --json
-```
+- `trigger_replay` — `confirmLive`, `eventId`, `payload`, `target`, `triggerId`, `workflowId`
+- `execution_tree` — `workflowExecutionId`, `cursor`, `flowId`, `limit`, `status`, `workflowId`
 
+`trigger_replay` takes `triggerId` (the numeric ID), `eventId`, `target: "live"` and `confirmLive: true`.
 A live replay executes the published workflow, calls live third-party actions and spends usage; it needs its own authorization and is optional.
 
 ## Verify
 
-```bash
-cai trigger get <triggerId> --json
-cai trigger list --json
-cai workflow status --json
-```
+- `trigger_get` — `triggerId`, `workflowId`
+- `trigger_list` — `workflowId`
+- `workflow_status` — `workflowId`
 
 The trigger, source, target flow, connection, props and mapping match the request; `devCanvasEnabled` and `deployment.liveCanvasEnabled` / `deployment.inLiveVersion` match the requested rail state; `deployment.devDispatchArmed` is false unless the user chose dual dispatch; for create or mapping work, the development replay's execution tree shows the flow receiving the mapped inputs and producing the expected effect; for a deletion, the list no longer shows the trigger and the status shows what remains live. Read [references/lifecycle.md](references/lifecycle.md) for the state sequence, the ID table and the missing-run diagnosis.
 

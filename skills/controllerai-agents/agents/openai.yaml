@@ -1,4 +1,0 @@
-interface:
-  display_name: "Controller AI Agents"
-  short_description: "Build and publish agents with the right tools"
-  default_prompt: "Use $controllerai-agents to build or edit this Controller AI agent, choose ready actions or workflows, verify the draft, and publish only when requested."

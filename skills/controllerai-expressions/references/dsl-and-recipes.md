@@ -1,7 +1,7 @@
 <!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 # Expression DSL and recipes
 
-The live compiler, `cai expr context` and `cai expr ops` are authoritative. These examples show structure; take every binding, field and operation name from the context.
+The live compiler, `expr_context` and `expr_operation_list` are authoritative. These examples show structure; take every binding, field and operation name from the context.
 
 ## Text template
 
@@ -46,7 +46,7 @@ flow.email.isNotEmpty()
 inputs.score >= 80
 ```
 
-Validate a condition with `--mode onlyWhen` and no prop name.
+Validate a condition with `expr_validate`, `mode: "onlyWhen"` and no `prop`.
 
 ## Dates
 
@@ -124,13 +124,13 @@ Confirm the binding and the path in the context.
 
 ## Troubleshooting order
 
-1. `cai expr context <nodeId> --prop <propName> --json`
+1. `expr_context`
 2. Confirm the intended source is wired and its `sourceNodeId` is right.
-3. `cai expr validate <nodeId> --prop <propName> --js '<expression>' --json`
-4. `cai expr set <nodeId> --prop <propName> --js '<expression>' --json`
-5. `cai expr decompile <nodeId> --prop <propName> --json`
-6. `cai run node <nodeId> --inputs <values.json> --json` for the destination alone
-7. `cai run flow <flowId> --inputs <values.json> --json` when the expression consumes a wired input
-8. `cai exec node <nodeExecutionId> --full --json`
+3. `expr_validate`
+4. `node_prop_set`
+5. `expr_decompile`
+6. `run_node` for the destination alone
+7. `run_flow` when the expression consumes a wired input
+8. `execution_node_get`
 
 If compilation succeeds but the runtime value is empty or partial, inspect `runScope`, the actual input value and `resolvedConfigs` before touching the syntax again. A node-only run cannot prove an `inputs.<name>` binding because it does not execute upstream nodes.

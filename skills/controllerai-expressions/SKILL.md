@@ -17,7 +17,7 @@ Node discovery, connections and static props belong to `controllerai-node-config
 
 Expressions are written in a restricted JavaScript-like language and compiled into the engine's expression tree. It is not JavaScript: no loops, assignments, `new`, regular expressions, optional chaining, object literals (the `{ ignoreEmptyConstraints: true }` filter options object is the one accepted object) or library methods beyond what the compiler catalog advertises. A program is optional `const` declarations followed by one final expression.
 
-**Everything is typed.** An expression can only be written against a known type. An integration node's output type is usually learned from a representative development run, or from a supported output selector or a declared provider sample, and `node status` says which route applies; `custom.*` types describe data-store records and AI structured outputs; `dataRecord.custom.x` is a stored record of that shape with its identity (`id`, `createdAt`, `updatedAt`), while bare `custom.x` is the shape alone; `list.` prefixes a list of any type. When an expression cannot be authored, the cause is usually a missing upstream type.
+**Everything is typed.** An expression can only be written against a known type. An integration node's output type is usually learned from a representative development run, or from a supported output selector or a declared provider sample, and `node_status` says which route applies; `custom.*` types describe data-store records and AI structured outputs; `dataRecord.custom.x` is a stored record of that shape with its identity (`id`, `createdAt`, `updatedAt`), while bare `custom.x` is the shape alone; `list.` prefixes a list of any type. When an expression cannot be authored, the cause is usually a missing upstream type.
 
 **Scope** comes from the destination's expression context: `flow.<name>` is a flow input, `inputs.<name>` a wired node input (usually already unwrapped), `item` the current loop item where the context exposes it, `workflowData("custom.type")` the records of an active collection on the current rail, and `now` and `isLiveVersion` constants. Bindings are display-derived and de-duplicated by the context; display labels and old spellings are not bindings.
 
@@ -45,51 +45,44 @@ Expressions are written in a restricted JavaScript-like language and compiled in
 
 ### Discover the scope and the operations
 
-```bash
-cai expr context <nodeId> --prop <propName> --json
-cai expr ops --workflow <workflowId> --type <text|number|date|list|boolean|file|custom> --json
-```
+- `expr_context` — `nodeId`, `methods`, `prop`, `workflowId`
+- `expr_operation_list` — `type`, `workflowId`
 
-The catalog is read from the workflow's expression context, so the workflow needs at least one node, and an existing pin (`cai use` or `CAI_WORKFLOW`) can replace `--workflow`.
+`expr_context` and `expr_operation_list` take an explicit `workflowId`; the catalog needs a workflow with at least one node.
 
 If the source is not wired yet:
 
-```bash
-cai node connect --flow <flowId> --from <sourceNodeId> --to <targetNodeId> --json
-```
+- `node_connect` — `flow`, `from`, `output`, `to`, `workflowId`
 
-Router and If/Else outputs connect through `cai branch connect`.
+Router and If/Else outputs connect through `branch_connect`.
 
 ### Validate, write, read back
 
-```bash
-cai expr validate <nodeId> --prop <propName> --js '<expression>' --json
-cai expr set <nodeId> --prop <propName> --js '<expression>' --json
-cai expr decompile <nodeId> --prop <propName> --json
-```
+- `expr_validate` — `nodeId`, `js`, `mode`, `prop`, `workflowId`
+- `node_prop_set` — `nodeId`, `js`, `label`, `prop`, `rawExpressionJson`, `value`, `workflowId`, `valueJson`
+- `expr_decompile` — `nodeId`, `prop`, `workflowId`
 
-The setter fetches the prop's metadata, enables a catalog-only optional prop when needed, compiles, writes the right channel and verifies the readback. If the write fails after enabling, the prop stays enabled: disable it with `cai node disable-prop <nodeId> --prop <propName>` and re-read. Decompile returns the stored source and channel, not a type: validate the decompiled source against the current destination to confirm the type still holds.
+The setter fetches the prop's metadata, enables a catalog-only optional prop when needed, compiles, writes the right channel and verifies the readback. If the write fails after enabling, the prop stays enabled: disable it with `node_optional_prop_set` and re-read. Decompile returns the stored source and channel, not a type: validate the decompiled source against the current destination to confirm the type still holds.
 
-For a multiline or shell-sensitive expression, keep the exact UTF-8 source in a file and pass `--js-file <path>` (or `--js-file -` for stdin) instead of `--js`; `expr validate`, `expr set`, `node set`, `node only-when`, `branch add` and `branch update` all accept it.
+`node_prop_set` is the single setter: for expression authoring pass `js` alone (it accepts exactly one of `value`, `valueJson`, `js` or `rawExpressionJson`; the raw form round-trips a compiled tree and is not for authoring), inline (there is no file or stdin). Disable a wrongly enabled optional prop with `node_optional_prop_set` and `enabled: false`.
 
 ### Conditions
 
-```bash
-cai expr validate <nodeId> --mode onlyWhen --js '<boolean expression>' --json
-cai node only-when <nodeId> --js '<boolean expression>' --json
-cai node only-when <nodeId> --groups-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
-cai branch update <nodeId> --route <routeId> --condition-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
-```
+- `expr_validate` — `nodeId`, `js`, `mode`, `prop`, `workflowId`
+- `node_only_when_set` — `nodeId`, `clear`, `groups`, `js`, `workflowId`
+- `branch_update` — `nodeId`, `conditionJson`, `js`, `name`, `branchId`, `workflowId`
 
 A node guard takes one boolean expression, or groups where each inner list is AND and the outer list is OR; a root `&&` or `||` inside one expression is not supported, so compound guards use groups. Branch conditions use the same grouped shape, each string compiled separately. Make a missing number fail a comparison with a same-type boundary: `(flow.unitsLeft ?? 5) < 5`.
 
+`expr_validate` takes `mode: "onlyWhen"` and no `prop`; `node_only_when_set` takes `js` or `groups` as the nested string arrays above; `branch_update` takes `conditionJson` in the same shape.
+
 ### Prove the value at runtime
 
-```bash
-cai run node <nodeId> --inputs <values.json> --json
-cai run flow <flowId> --inputs <values.json> --json
-cai exec node <nodeExecutionId> --full --json
-```
+- `run_node` — `nodeId`, `inputs`, `waitSeconds`, `workflowId`
+- `run_flow` — `flowId`, `confirmLive`, `inputs`, `target`, `waitSeconds`, `workflowId`
+- `execution_node_get` — `nodeExecutionId`, `full`, `workflowId`
+
+`run_node` and `run_flow` take the parsed `inputs` and `waitSeconds` (default 60, maximum 120); `execution_node_get` with `full: true` returns the untruncated result.
 
 The node run isolates the destination's own configuration. The flow run proves an upstream-derived value. Inspect `runScope` and `resolvedConfigs`; when a search unexpectedly returns nothing, look at the resolved comparison values first.
 

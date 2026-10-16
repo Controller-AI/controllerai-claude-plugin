@@ -41,50 +41,44 @@ A conversational assistant with tools and knowledge is an agent (`controllerai-a
 
 ### Add the node
 
-```bash
-cai integration actions "ask AI" --json
-cai integration action --integration <nodeSlug> --key <nodeKey> --json
-cai node add --flow <flowId> --node <nodeSlug> --key <nodeKey> --name "<result produced>" --after <upstreamNodeId> --json
-cai node status <nodeId> --json
-```
+- `integration_action_list` — `query`, `agentAttachable`, `integration`, `limit`
+- `integration_action_get` — `integration`, `key`
+- `node_add` — `after`, `connection`, `enableProp`, `flow`, `key`, `name`, `node`, `output`, `props`, `workflowId`
+- `node_status` — `nodeId`, `workflowId`
 
 ### Configure in dependency order
 
-```bash
-cai node set <nodeId> --prop <providerProp> --value <provider> --json
-cai node props <nodeId> --json
-cai node options <nodeId> --prop <modelProp> --query "<model family>" --json
-cai node set <nodeId> --prop <modelProp> --value <returnedValue> --label "<returnedLabel>" --json
-cai schema create custom.<result> --field category:text:"Category" --field confidence:number:"Confidence" --field rationale:text:"Rationale" --json
-cai node set <nodeId> --prop <responseTypeProp> --value custom.<result> --json
-cai expr context <nodeId> --prop <userMessageProp> --json
-cai expr set <nodeId> --prop <userMessageProp> --js '<template bound to inputs>' --json
-cai node set <nodeId> --prop <promptProp> --value "<standing instructions>" --json
-```
+- `node_prop_set` — `nodeId`, `js`, `label`, `prop`, `rawExpressionJson`, `value`, `workflowId`, `valueJson`
+- `node_prop_list` — `nodeId`, `workflowId`
+- `node_prop_options` — `nodeId`, `for`, `page`, `prevContext`, `prop`, `query`, `workflowId`
+- `node_prop_set` — `nodeId`, `js`, `label`, `prop`, `rawExpressionJson`, `value`, `workflowId`, `valueJson`
+- `schema_type_create` — `name`, `display`, `field`, `fromJson`, `workflowId`
+- `node_prop_set` — `nodeId`, `js`, `label`, `prop`, `rawExpressionJson`, `value`, `workflowId`, `valueJson`
+- `expr_context` — `nodeId`, `methods`, `prop`, `workflowId`
+- `node_prop_set` — `nodeId`, `js`, `label`, `prop`, `rawExpressionJson`, `value`, `workflowId`, `valueJson`
 
 The query is a label substring, not a preference: search a family name, then judge the returned options by cost, quality, latency and constraints. The schema step applies only when downstream nodes need fields.
 
-`node options` prefers `--query`; use `--page` with the returned `--prev-context` only when search is unavailable, and `--for <prop>=<value>` to resolve options against a value not yet saved. Reuse an existing schema when one already has the intended shape.
+`node_prop_options` takes `prop` and `query` (page with `page` and `prevContext`); `node_prop_set` is the single setter, taking `value` (with `label` as an array for a dropdown) or `js` for the user message, exactly one per call: one call each for the provider prop, the model prop, the response type prop and the message prop. `schema_type_create` takes `name` and `field` as an array such as `["category:text:Category", "confidence:number:Confidence", "rationale:text:Rationale"]`. Reuse an existing schema when one already has the intended shape.
 
 The user message carries the inputs through exact bindings; the prompt carries the standing material: the task and audience, the decision rules and constraints, the output fields and format, and the explicit no-data or uncertainty behavior. No filler persona, no repeated instruction, no claim about data the context does not expose.
 
 ### Call a platform agent from a flow
 
-```bash
-cai integration actions "agent conversation" --integration registry_agent --json
-cai integration action --integration registry_agent --key <actionKey> --json
-cai node add --flow <flowId> --node registry_agent --key <actionKey> --name "<what it does>" --json
-cai node props <nodeId> --json
-```
+- `integration_action_list` — `query`, `agentAttachable`, `integration`, `limit`
+- `integration_action_get` — `integration`, `key`
+- `node_add` — `after`, `connection`, `enableProp`, `flow`, `key`, `name`, `node`, `output`, `props`, `workflowId`
+- `node_prop_list` — `nodeId`, `workflowId`
 
+`integration_action_list` takes `query` and `integration: "registry_agent"`; `node_add` takes `node: "registry_agent"` and the exact `key`.
 Select the intended agent from the returned options; a send-message action also needs the `conversationId` it targets, and the "current agent" or "current conversation" choices work only when the flow itself was started by an agent. The output confirms dispatch (conversation ID, sent flag); read the answer on the conversation with `controllerai-agents`.
 
 ### Test
 
-```bash
-cai run node <nodeId> --inputs <values.json> --json
-cai exec node <nodeExecutionId> --full --json
-```
+- `run_node` — `nodeId`, `inputs`, `waitSeconds`, `workflowId`
+- `execution_node_get` — `nodeExecutionId`, `full`, `workflowId`
+
+`run_node` takes the parsed `inputs` and `waitSeconds`; `execution_node_get` with `full: true` returns the untruncated output.
 
 For a new classifier or extractor, run the normal case, the missing-data case, an alternate or negative case, and an adversarial case when the input can carry instructions; a repair needs the case it fixed. When the message reads upstream values, run the containing flow and check its declared outputs as in `controllerai-runs`. Read [references/selection-and-testing.md](references/selection-and-testing.md) for the surface choice table, the model trade-offs and the evaluation set.
 

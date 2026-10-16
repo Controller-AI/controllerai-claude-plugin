@@ -30,9 +30,9 @@ The account event feed records only supported events: connections created, workf
 1. **Before changing an existing workflow, read its outline and the affected flow**, then repair those IDs rather than creating a replacement workflow or flow. A repair that recreates loses history, triggers and callers.
 2. **Rename contracts in place.** Deleting and recreating an input or output breaks every expression, subflow mapping and agent tool bound to it. After a rename or deletion, re-read the flow and repair the affected dependents before validating or running; a stored input-ID binding survives a rename, so the readback may show nothing to repair.
 3. **"Store, save, log, record" without a named destination means a custom data type plus a create-record node.** A flow output alone persists nothing. When the user names a destination (a sheet, a CRM, an app, a file), write there through that integration; add a platform record only if they also want a copy kept here.
-4. **Validate after structural edits and before publishing.** Fix every listed prop, wire, expression, type, subflow, branch and trigger error, or report each one with what it breaks. Publish refuses errors; `--acknowledge-validation-errors` is for issues the user has seen and accepted, never a shortcut. If the user forbids a repair, report and stop.
+4. **Validate after structural edits and before publishing.** Fix every listed prop, wire, expression, type, subflow, branch and trigger error, or report each one with what it breaks. Publish refuses errors; `acknowledgeValidationErrors` is for issues the user has seen and accepted, never a shortcut. If the user forbids a repair, report and stop.
 5. **Validation counts are status.** Do not write them into unrelated workflow properties unless the user asks for exactly that.
-6. **Deleting a workflow needs the user's explicit intent.** A confirmation flag is not authorization. Check dependencies first; detach draft tools with `cai agent remove-tool <agentId> --tool <toolId>`, and treat a live agent's republish as its own decision.
+6. **Deleting a workflow needs the user's explicit intent.** A confirmation flag is not authorization. Check dependencies first; detach draft tools with `agent_tool_remove`, and treat a live agent's republish as its own decision.
 7. **Layout once per changed flow.** After adds, deletes or rewires, run the flow layout as the last structural step; placement at add time only avoids overlap.
 8. **Never weaken the request to make a test pass.** Report an unsupported capability or ask the product question. Keep deliberately armed triggers and advisory-only nodes the user chose.
 9. **A conflict means re-read, then reapply the intent to the current graph.** Never replay a stale document or old IDs; the retried write uses the IDs the current state holds.
@@ -42,30 +42,19 @@ The account event feed records only supported events: connections created, workf
 
 ### Establish context
 
-```bash
-cai auth status --json
-cai workflow list --json
-cai use <workflowId>
-cai workflow status --json
-```
-
-A create or `cai use` may not win the effective pin: read `selected`, `effectiveWorkflowId` and `pinSource`, and resolve as `pinSource` says (drop the command flag, use `cai use <id>`, or clear an inherited `CAI_WORKFLOW`). `cai config reset` clears stored pins only; `cai doctor` confirms the effective pin and development head.
+Call `account_status`, select the workflow from `workflow_list`, then call `workflow_status` with its exact `workflowId`. There is no pin: capture the ID once and pass it on every workflow-scoped call.
 
 ### Create
 
-```bash
-cai workflow create --name "<clear outcome-oriented name>" --json
-```
+- `workflow_create` — `name`
 
-Create with the final name. Read `flowCount` and `nextStep`: with 0 flows, create the first flow with `cai flow create --name "<name>" --json`; with one empty default flow, rename it and build in it; when either field is missing, list the flows before deciding. Add flows only for genuinely separate canvases, and stop at an empty workflow when that is what was asked. A missing projected field is not a failed create: read the full result or the exact inventory before retrying.
+Create with the final name. Read `flowCount` and `nextStep`: with 0 flows, create the first flow with `flow_create`; with one empty default flow, rename it and build in it; when either field is missing, list the flows before deciding. Add flows only for genuinely separate canvases, and stop at an empty workflow when that is what was asked. A missing projected field is not a failed create: read the full result or the exact inventory before retrying.
 
 ### Orient
 
-```bash
-cai workflow outline --json
-cai workflow state --flow <flowId> --json
-cai flow get <flowId> --json
-```
+- `workflow_outline` — `workflowId`
+- `workflow_state_get` — `flowId`, `stateId`, `workflowId`
+- `flow_get` — `flowId`, `workflowId`
 
 The outline shows flows, contracts, graph dependencies, triggers and data inventory in one call. State is a bounded projection; pass the flow ID for node and edge identities. The flow read exposes props and expressions.
 
@@ -78,44 +67,37 @@ The outline shows flows, contracts, graph dependencies, triggers and data invent
 
 ### Publish
 
-```bash
-cai workflow status --json
-cai trigger list --json
-cai workflow publish --json
-```
+- `workflow_status` — `workflowId`
+- `trigger_list` — `workflowId`
+- `workflow_publish` — `acknowledgeDualDispatch`, `acknowledgeValidationErrors`, `name`, `workflowId`
 
 Read status and every trigger first: publishing activates enabled triggers on the live release. The publish refuses validation errors and may return an approval that the user must grant.
 
-When the publish returns an approval, the CLI polls it; if polling is interrupted, `cai approval resume <approvalId>` continues the same intent instead of publishing again.
+`workflow_publish` takes `workflowId`, `name`, `acknowledgeValidationErrors` and `acknowledgeDualDispatch`. When it returns an approval, continue it with `approval_resume` (`approvalId`, `waitSeconds`) rather than publishing again.
 
 ### Checkpoint and recover
 
-```bash
-cai workflow save --name "<checkpoint>" --json
-cai workflow history --json
-cai workflow history --group <groupId> --json
-cai workflow restore --state <stateId> --json
-```
+- `workflow_state_save` — `name`, `workflowId`
+- `workflow_history` — `group`, `version`, `workflowId`
+- `workflow_state_restore` — `stateId`, `version`, `workflowId`
 
 Save before a risky rewrite. Expand a group to find the state ID; restore by state, not by group.
 
 ### Delete
 
-```bash
-cai deps --json
-cai workflow delete <workflowId> --yes
-```
-`cai deps --account` maps the whole account. The `--force` flag is deprecated and inert.
+- `dependency_map` — `workflowId`
+- `workflow_delete` — `workflowId`
+`dependency_map` takes an optional `workflowId`; omit it for the account-wide map. `workflow_delete` has no confirmation parameter, which changes nothing about needing the user's intent.
 
 ## Verify
 
-```bash
-cai workflow outline --json
-cai workflow validate --json
-cai workflow status --json
-cai flow get <flowId> --json
-cai run flow <flowId> --inputs <values.json> --json
-```
+- `workflow_outline` — `workflowId`
+- `workflow_validate` — `workflowId`
+- `workflow_status` — `workflowId`
+- `flow_get` — `flowId`, `workflowId`
+- `run_flow` — `flowId`, `confirmLive`, `inputs`, `target`, `waitSeconds`, `workflowId`
+
+Pass the parsed values as `inputs` and set `waitSeconds` on `run_flow`.
 
 Evidence that a build works: validation reports zero errors, or each remaining error is reported with its effect; required connections and props are complete; expressions resolve to the expected values, with intentional empties explained; the expected branch and error paths ran where practical; the flow outputs contain the promised values; the development or live state matches the request; the final outline matches the request, with only your own abandoned scratch objects removed. A checkpoint or a rename needs its readback, not a run. Once the requested blockers are fixed and each changed path ran once, stop; warnings alone do not justify a redesign.
 
@@ -123,4 +105,3 @@ Evidence that a build works: validation reports zero errors, or each remaining e
 
 What was built, what ran and what it returned, whether it is published, and any connection or product decision still pending. Share returned product links only; never guess one.
 
-Read [references/command-map.md](references/command-map.md) for the command families by domain when a task spans several areas.

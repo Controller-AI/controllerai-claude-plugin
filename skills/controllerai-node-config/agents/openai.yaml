@@ -1,4 +1,0 @@
-interface:
-  display_name: "Controller AI Node Configuration"
-  short_description: "Discover, initialize, and configure workflow nodes"
-  default_prompt: "Configure the required Controller AI nodes using live schemas and verify every write."

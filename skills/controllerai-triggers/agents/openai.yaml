@@ -1,4 +1,0 @@
-interface:
-  display_name: "Controller AI Triggers"
-  short_description: "Create and debug workflow triggers"
-  default_prompt: "Create or repair the Controller AI trigger, test the downstream flow, and explain the live publish boundary."

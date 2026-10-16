@@ -33,7 +33,7 @@ Filtering records in expressions belongs to `controllerai-expressions`; configur
 ## Rules
 
 1. **Persisting in workflow data needs a schema and a create-record node.** A flow output or an AI structured result is not stored anywhere by itself; a named external destination is written through its integration.
-2. **Inspect existing schemas first and treat field IDs as contracts.** Relabel with `--display`; renaming the `custom.*` key or a field ID strands the stored values under the old key.
+2. **Inspect existing schemas first and treat field IDs as contracts.** Relabel with `display` alone in `schema_type_update`; renaming the `custom.*` key or a field ID strands the stored values under the old key.
 3. **Read the whole schema before updating it, then read the echo.** The field list is replaced, not merged; disclose every removed field and confirm the persisted shape matches intent.
 4. **Never feed a query result into a direct create or update.** Its keys are display names; rebuild the fields object by write key and omit `id`, `createdAt` and `updatedAt`. The native Update, Update multiple and Delete nodes are the opposite case: they take the stored record itself.
 5. **Work on the store the request names; development is the default.** Before any live write, say that published and triggered runs read that store.
@@ -48,57 +48,47 @@ Filtering records in expressions belongs to `controllerai-expressions`; configur
 
 ### Define and inspect a type
 
-```bash
-cai schema list --json
-cai schema get custom.<name> --json
-cai schema create custom.customer --display "Customer" --field email:text:"Email" --field score:number:"Score" --json
-cai schema update custom.customer --display "Customers" --json
-cai data fields --type custom.customer --json
-```
+- `schema_type_list` — `all`, `workflowId`
+- `schema_type_get` — `name`, `workflowId`
+- `schema_type_create` — `name`, `display`, `field`, `fromJson`, `workflowId`
+- `schema_type_update` — `name`, `display`, `field`, `fromJson`, `workflowId`
+- `data_field_list` — `type`, `workflowId`
 
-`--field id:type[:display]` repeats; `--from-json <file|->` takes a full `{display, fields}` definition; a relabel is `--display` alone. Creating the schema creates the collection, and `cai data collection create` is the same call. Deleting a type needs `--yes` and also removes fields on other types that referenced it.
+`schema_type_create` takes `name` and either `field` as an array of `id:type[:display]` strings or `fromJson` as the full `{display, fields}` object; `schema_type_update` takes `name` and at least one of `display`, `field` (the complete replacement list) or `fromJson`. Creating the schema creates the collection; there is no separate collection tool. Deleting a type also removes fields on other types that referenced it.
 
 ### Read and write records
 
-```bash
-cai data collections --env dev --json
-cai data query --type custom.customer --env dev --limit 50 --json
-cai data get <recordId> --type custom.customer --env dev --json
-cai data create --type custom.customer --fields '{"email":"a@example.com","score":5}' --env dev --json
-cai data update <recordId> --type custom.customer --fields '{"score":7}' --env dev --json
-cai data delete <recordId> --type custom.customer --env dev --json
-```
+- `data_collection_list` — `env`, `workflowId`
+- `data_record_query` — `env`, `limit`, `offset`, `query`, `type`, `workflowId`
+- `data_record_get` — `recordId`, `env`, `type`, `workflowId`
+- `data_record_create` — `env`, `fields`, `type`, `workflowId`
+- `data_record_update` — `recordId`, `env`, `fields`, `type`, `workflowId`
+- `data_record_delete` — `recordId`, `env`, `type`, `workflowId`
 
-The update is a patch: omitted fields keep their values. A `get` of a missing record returns null rather than an error, because the two stores hold different rows. Live reads use `--env live` on the same commands; `--limit` and `--offset` page a query.
+The update is a patch: omitted fields keep their values. A `get` of a missing record returns null rather than an error, because the two stores hold different rows. Live reads pass `env: "live"` on the same tools; `limit` and `offset` page a query. Every write requires an explicit `env`; reads default to `dev` when `env` is omitted.
 
 ### Delete many
 
-```bash
-cai data delete-many --type custom.customer --records <id1,id2> --env dev --json
-cai data delete-many --type custom.customer --all --yes --env dev --json
-```
+- `data_record_delete_many` — `all`, `env`, `recordIds`, `type`, `workflowId`
 
-`--all` requires `--yes`, and the two selectors are mutually exclusive.
+Pass exactly one of `recordIds` or `all: true`; there is no confirmation parameter, which changes nothing about needing the user's intent.
 Soft deletes have no undo. On the live store the published workflow sees the change immediately.
 
 ### Import a CSV
 
-```bash
-cai data import --type custom.customer --file customers.csv --mode dryRun --env dev --json
-cai data import --type custom.customer --file customers.csv --mode commit --env dev --json
-```
+- `data_record_import_commit` — `env`, `content`, `type`, `workflowId` / `data_record_import_validate` — `env`, `content`, `type`, `workflowId`
 
+The CSV travels inline as `content`; `data_record_import_validate` (`type`, `content`, `env`) is the dry run, and `data_record_import_commit` with the same arguments writes.
 Columns match display names, the opposite of a direct write. The dry run writes nothing on either store and reports valid and invalid rows; a live commit is visible to the published workflow at once. Read the result counts and query the imported rows on the same store.
 
 ### Promote development data to live
 
-```bash
-cai workflow publish --json
-cai data copy-to-live --type custom.customer --json
-cai data collections --env live --json
-```
+- `workflow_publish` — `acknowledgeDualDispatch`, `acknowledgeValidationErrors`, `name`, `workflowId`
+- `data_copy_to_live` — `type`, `workflowId`, `env`
+- `data_collection_list` — `env`, `workflowId`
 
 The live collection exists only after a publish, and a changed schema needs a new publish before copying. Copy upserts by record key: live-only rows stay, a live row with the same key is overwritten with the development value, and a deleted live row with that key comes back. Read both collections before an authorized copy, then report `createdCount`, `updatedCount` and the live total.
+`data_copy_to_live` takes `type` and the acknowledgement `env: "live"`.
 
 ### Build a data backend
 
@@ -106,21 +96,16 @@ For a CRM, tracker or lookup table that flows and agents will call: define each 
 
 ### Diagnose development versus live
 
-```bash
-cai data collections --env dev --json
-cai data collections --env live --json
-cai data query --type custom.<name> --env live --json
-```
+- `data_collection_list` — `env`, `workflowId`
+- `data_record_query` — `env`, `limit`, `offset`, `query`, `type`, `workflowId`
 
 A live store with no collections usually means no publish since a store-eligible schema existed; an empty live collection next to a populated development one usually means the data was never promoted or was cleared since. Confirm with the publish status, the live schema and the record history before prescribing a copy. Different row counts between the stores are normal until data is written or copied on each.
 
 ## Verify
 
-```bash
-cai schema get custom.<name> --json
-cai data query --type custom.<name> --env <dev|live> --json
-cai workflow validate --json
-```
+- `schema_type_get` — `name`, `workflowId`
+- `data_record_query` — `env`, `limit`, `offset`, `query`, `type`, `workflowId`
+- `workflow_validate` — `workflowId`
 
 The schema readback shows the intended key, display, complete field list and types; a same-store query shows the expected records with the right field values; expressions that reference the schema still compile; and for a live request, the live collection holds the promised rows.
 

@@ -1,3 +1,4 @@
+<!-- generated from .claude/skills by cli/scripts/render-skills.mjs; edit the source -->
 # Data rails and safety
 
 ## What publishing copies
@@ -36,11 +37,7 @@ Resolve the exact workflow, store, type and records before any of these. A schem
 
 If a manual run passes but a trigger or agent tool does not, compare the two stores:
 
-```bash
-cai data collections --env dev --json
-cai data collections --env live --json
-cai data query --type custom.<name> --env dev --json
-cai data query --type custom.<name> --env live --json
-```
+- `data_collection_list` — `env`, `workflowId`
+- `data_record_query` — `env`, `limit`, `offset`, `query`, `type`, `workflowId`
 
 No live collections usually means no publish since a store-eligible schema existed. An empty live collection with a populated development one usually means the data was never promoted or was cleared since. Confirm with publish status, the live schema and record history; different counts are normal until data is intentionally written on both stores.

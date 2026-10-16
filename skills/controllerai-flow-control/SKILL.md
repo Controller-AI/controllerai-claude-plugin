@@ -47,71 +47,61 @@ A fresh If/Else ships with one blank `If` branch and an Else; the blank conditio
 
 ### Guard one action
 
-```bash
-cai expr context <nodeId> --json
-cai expr validate <nodeId> --mode onlyWhen --js '<boolean expression>' --json
-cai node only-when <nodeId> --js '<boolean expression>' --json
-cai node only-when <nodeId> --groups-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
-```
+- `expr_context` — `nodeId`, `methods`, `prop`, `workflowId`
+- `expr_validate` — `nodeId`, `js`, `mode`, `prop`, `workflowId`
+- `node_only_when_set` — `nodeId`, `clear`, `groups`, `js`, `workflowId`
 
-Use `--clear` only when removing the guard is the user's intent.
+`expr_validate` takes `mode: "onlyWhen"` and no `prop`. `node_only_when_set` takes `js` for one expression or `groups` as the parsed arrays, for example `groups: [["flow.email.isNotEmpty()", "flow.units < 5"], ["flow.override === true"]]`; pass `clear: true` only when removing the guard is the user's intent.
 
 ### If/Else and Router
 
-```bash
-cai branch list <controlNodeId> --json
-cai branch update <controlNodeId> --route <defaultIfBranchId> --name "<meaning>" --js '<boolean expression>' --json
-cai branch add <controlNodeId> --name "<meaning>" --js '<boolean expression>' --json
-cai branch update <controlNodeId> --route <routeId> --condition-json '[["flow.email.isNotEmpty()","flow.units < 5"],["flow.override === true"]]' --json
-cai branch connect <controlNodeId> --route <routeId> --to <targetNodeId> --flow <flowId> --json
-cai branch reorder <ifElseNodeId> --order <conditionId1,conditionId2> --json
-```
+- `branch_list` — `nodeId`, `workflowId`
+- `branch_update` — `nodeId`, `conditionJson`, `js`, `name`, `branchId`, `workflowId`
+- `branch_add` — `nodeId`, `allowDuplicate`, `conditionJson`, `js`, `name`, `workflowId`
+- `branch_update` — `nodeId`, `conditionJson`, `js`, `name`, `branchId`, `workflowId`
+- `branch_connect` — `nodeId`, `flow`, `branchId`, `to`, `workflowId`
+- `branch_reorder` — `nodeId`, `order`, `workflowId`
 
 Find the control component with `controllerai-node-config`, then read the branch IDs. Grouped conditions are OR of AND rows, each string compiled separately. Add an If branch only for another non-Else case; add a Router route for each intended independent match. Reorder lists every condition branch exactly once and omits Else, which stays last. Wire every returned route ID explicitly.
 
+`branch_update` and `branch_add` take `js` or `conditionJson` as the parsed arrays (`conditionJson: [["flow.email.isNotEmpty()", "flow.units < 5"], ["flow.override === true"]]`) with `branchId` for the route; `branch_connect` takes `branchId`, `to` and `flow`; `branch_reorder` takes `order` as the array of condition IDs.
+
 ### Loop over a list
 
-```bash
-cai node get <listProducingNodeId> --json
-cai flow for-each --flow <parentFlowId> --from <listProducingNodeId> --source-output <exactOutputId> --name "<item flow name>" --item-type <text|number|date|boolean|custom.type> --max-items <n> --json
-cai node set <loopNodeId> --prop maxItems --value <n> --json
-cai node set <loopNodeId> --prop continueOnIterationError --value true --json
-```
+- `node_get` — `nodeId`, `workflowId`
+- `flow_for_each_scaffold` — `continueOnError`, `flow`, `from`, `itemField`, `itemName`, `itemType`, `listField`, `listJs`, `maxItems`, `name`, `sourceOutput`, `workflowId`
+- `node_prop_set` — `nodeId`, `js`, `label`, `prop`, `rawExpressionJson`, `value`, `workflowId`, `valueJson`
 
-`--source-output` is the exact `outputs[].id` of the selected node, never a display name, and there is no first-output default (branch and error outputs included). When the whole output is the list, omit the list selectors; for a nested list use `--list-field` with the dot path below `.data`; reserve `--list-js` for an exact advanced expression whose shape you took from the context; the selection forms are mutually exclusive. `--item-field <id:type[:display]>` (repeatable) is only for creating a new `custom.*` item type; stored records use `dataRecord.custom.*`. Set the cap on purpose when the requirement differs from 500, decide `--continue-on-error` explicitly, then read the returned warnings and follow `nextSteps` in order; a list/item type mismatch means created but unverified. In mappings, `item` exists only where the context exposes it; inside the body flow the item is `flow.<itemInput>`; aggregate results are iteration records with child outputs under `outputs`.
+`sourceOutput` is the exact `outputs[].id` of the selected node, never a display name, and there is no first-output default (branch and error outputs included). When the whole output is the list, omit the list selectors; for a nested list pass `listField` with the dot path below `.data`; reserve `listJs` for an exact advanced expression whose shape you took from the context; the two are mutually exclusive. `itemField` (an array of `id:type[:display]` strings) is only for creating a new `custom.*` item type; stored records use `dataRecord.custom.*`. Set `maxItems` on purpose when the requirement differs from 500, decide `continueOnError` explicitly, then read the returned warnings and follow `nextSteps` in order; a list/item type mismatch means created but unverified. In mappings, `item` exists only where the context exposes it; inside the body flow the item is `flow.<itemInput>`; aggregate results are iteration records with child outputs under `outputs`.
 
-For multiline or shell-sensitive list source, pass `--js-file <path|->` instead of `--list-js`.
+`flow_for_each_scaffold` takes `listField` or `listJs` inline; the server reads no local file. Later changes go through `node_prop_set` on the loop node: `prop: "maxItems"` with a number, or `prop: "continueOnIterationError"` with `value: true`.
 
 ### Call another flow
 
-```bash
-cai node set-flow <runFlowNodeId> --flow <calledFlowId> --json
-cai node props <runFlowNodeId> --json
-```
+- `node_subflow_set` — `nodeId`, `flow`, `workflowId`
+- `node_prop_list` — `nodeId`, `workflowId`
 
 Define the called flow's inputs and outputs first, add the Run flow component, set the target, then bind the generated mapping props with expressions.
 
 ### Converge, return, handle errors
 
-```bash
-cai node add --flow <flowId> --node registry_flow --key registry_flow-merge --name "Join paths" --json
-cai node set <joinNodeId> --prop mode --value chooseActivePath --json
-cai flow output add <bodyFlowId> --display "<output label>" --name <output_key> --type <type> --json
-cai node add --flow <bodyFlowId> --node registry_flow --key registry_flow-return-response --name "Return <value>" --after <producerNodeId> --json
-cai node continue-on-error <nodeId> --enable --json
-cai node connect --flow <flowId> --from <nodeId> --to <handlerNodeId> --output error --json
-```
+- `node_add` — `after`, `connection`, `enableProp`, `flow`, `key`, `name`, `node`, `output`, `props`, `workflowId`
+- `node_prop_set` — `nodeId`, `js`, `label`, `prop`, `rawExpressionJson`, `value`, `workflowId`, `valueJson`
+- `flow_output_add` — `flowId`, `description`, `display`, `name`, `type`, `workflowId`
+- `node_add` — `after`, `connection`, `enableProp`, `flow`, `key`, `name`, `node`, `output`, `props`, `workflowId`
+- `node_continue_on_error_set` — `nodeId`, `enabled`, `workflowId`
+- `node_connect` — `flow`, `from`, `output`, `to`, `workflowId`
 
-Join Paths: connect every type-compatible branch tail to it (all connected input types are checked, inactive paths included, which is why `pathDataType` is asked for once `chooseActivePath` reveals it), set `pathDataType` from the returned options, and place the shared action after it (`--after <joinNodeId>`, or connect the existing action). Return: declare the output first so its generated prop exists, add the exact component after the producer, then bind the prop through the expression setter. Error output wiring is optional; add it only when a failure needs explicit handling.
+Join Paths: connect every type-compatible branch tail to it (all connected input types are checked, inactive paths included, which is why `pathDataType` is asked for once `chooseActivePath` reveals it), set `pathDataType` from the returned options, and place the shared action after it (`after: "<joinNodeId>"`, or connect the existing action). Return: declare the output first so its generated prop exists, add the exact component after the producer, then bind the prop through the expression setter. Error output wiring is optional; add it only when a failure needs explicit handling.
+
+`node_add` takes `node: "registry_flow"`, `key: "registry_flow-merge"` (or `"registry_flow-return-response"`), `name` and `after`; `node_prop_set` sets `prop: "mode"`, `value: "chooseActivePath"` and `prop: "pathDataType"`; `node_continue_on_error_set` takes `enabled: true`; `node_connect` takes `output: "error"` for the error path.
 
 ## Verify
 
-```bash
-cai branch list <controlNodeId> --json
-cai workflow validate --json
-cai run flow <flowId> --inputs <values.json> --json
-cai exec tree <workflowExecutionId> --json
-```
+- `branch_list` — `nodeId`, `workflowId`
+- `workflow_validate` — `workflowId`
+- `run_flow` — `flowId`, `confirmLive`, `inputs`, `target`, `waitSeconds`, `workflowId`
+- `execution_tree` — `workflowExecutionId`, `cursor`, `flowId`, `limit`, `status`, `workflowId`
 
 Every branch has its intended condition and a wired target; If/Else order matches priority with Else last; Router fan-out is intentional where more than one condition can be true; the loop's item type and list expression compile against real data; the paths the task implies ran: true, false or Else, empty list, one item, several, over the cap, and the intended error path; the execution tree explains every `only_when_false` and `upstream_skipped` and shows no unexplained missing node; a loop's outer success is not proof for every item, so inspect iteration records and surface individual failures.
 

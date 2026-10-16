@@ -5,26 +5,20 @@ Use this order; it avoids changing a downstream node when the defect is upstream
 
 ## 1. Confirm the version and the graph
 
-```bash
-cai workflow status --json
-cai flow get <flowId> --json
-```
+- `workflow_status` — `workflowId`
+- `flow_get` — `flowId`, `workflowId`
 
 Node runs use development. Flow runs use development unless the published version was selected explicitly. Every run can call real providers.
 
 ## 2. Find the first divergence
 
-```bash
-cai exec tree <workflowExecutionId> --limit 50 --json
-```
+- `execution_tree` — `workflowExecutionId`, `cursor`, `flowId`, `limit`, `status`, `workflowId`
 
-Follow `nextCursor` with `--cursor`; use repeatable `--status` or an exact `--flow <flowId>` on a large run. Classify each node as completed, completed with a handled error, failed, cancelled, paused, skipped on purpose (`only_when_false`), skipped unexpectedly (`upstream_skipped` behind a failure or a wrong branch), or absent. The first divergence is usually the cause; later failures are consequences.
+Follow `nextCursor` as `cursor`; use `status` (an array) or an exact `flowId` on a large run. Classify each node as completed, completed with a handled error, failed, cancelled, paused, skipped on purpose (`only_when_false`), skipped unexpectedly (`upstream_skipped` behind a failure or a wrong branch), or absent. The first divergence is usually the cause; later failures are consequences.
 
 ## 3. Inspect the node boundary
 
-```bash
-cai exec node <nodeExecutionId> --full --json
-```
+- `execution_node_get` — `nodeExecutionId`, `full`, `workflowId`
 
 In order:
 

@@ -1,4 +1,0 @@
-interface:
-  display_name: "Controller AI Workflows"
-  short_description: "Build and edit Controller AI workflows safely"
-  default_prompt: "Use Controller AI to build or edit this workflow, verify it, and keep live unchanged until I ask to publish."
