@@ -10,7 +10,7 @@
       "name": "controllerai",
       "source": "./",
       "description": "Build, run, debug, and maintain visual automations with Controller AI. User-facing agent building is also supported.",
-      "version": "0.4.1",
+      "version": "0.4.2",
       "author": {
         "name": "Controller AI",
         "email": "hi@getcontroller.ai"

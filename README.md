@@ -27,7 +27,7 @@ Install the plugin from its GitHub repository. Installing the plugin loads its s
 
 1. Open the Controller AI plugin details.
 2. Open **Connectors** and select **Connect** for `controllerai`.
-3. Complete Controller AI OAuth, then choose **My Controller account** to sign in or sign up and connect that Controller AI account, or **Separate agent account** to create or continue without email or a password.
+3. Complete Controller AI OAuth: sign in to your Controller AI account, or sign up for one, and approve the connection.
 4. Start a fresh task and ask Claude to use the Controller AI connector.
 
 ## Try it
@@ -39,7 +39,7 @@ Install the plugin from its GitHub repository. Installing the plugin loads its s
 ## Requirements
 
 - Claude Code, Claude Cowork, or Claude chat on a paid plan
-- No Controller AI account is required in advance: during MCP authorization, choose **My Controller account** to sign in or sign up, or **Separate agent account** to create or continue without email or a password
+- A Controller AI account: sign in, or sign up for one, during MCP authorization
 - Network access to `https://mcp.getcontroller.ai/mcp`
 
 Controller AI documentation: <https://docs.getcontroller.ai>
